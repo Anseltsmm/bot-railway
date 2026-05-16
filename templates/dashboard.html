@@ -1,200 +1,247 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Bot Dashboard</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sniper Scalping Dashboard</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <style>
-        *{
-            margin:0;
-            padding:0;
-            box-sizing:border-box;
-            font-family:Arial;
-        }
+<style>
 
-        body{
-            background:#0f172a;
-            color:white;
-            padding:20px;
-        }
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial;
+}
 
-        h1{
-            margin-bottom:20px;
-        }
+body{
+background:#020617;
+color:white;
+padding:20px;
+}
 
-        .grid{
-            display:grid;
-            grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-            gap:20px;
-        }
+.header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+}
 
-        .card{
-            background:#1e293b;
-            padding:20px;
-            border-radius:20px;
-            box-shadow:0 0 15px rgba(0,0,0,0.3);
-        }
+.title{
+font-size:32px;
+font-weight:bold;
+}
 
-        .title{
-            font-size:14px;
-            color:#94a3b8;
-        }
+.status{
+background:#16a34a;
+padding:10px 18px;
+border-radius:12px;
+font-weight:bold;
+}
 
-        .value{
-            font-size:28px;
-            margin-top:10px;
-            font-weight:bold;
-        }
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:20px;
+}
 
-        .green{
-            color:#22c55e;
-        }
+.card{
+background:#0f172a;
+padding:20px;
+border-radius:20px;
+border:1px solid #1e293b;
+box-shadow:0 0 20px rgba(0,0,0,0.4);
+}
 
-        .red{
-            color:#ef4444;
-        }
+.label{
+color:#94a3b8;
+margin-bottom:10px;
+}
 
-        .chart-box{
-            margin-top:30px;
-            background:#1e293b;
-            padding:20px;
-            border-radius:20px;
-        }
+.value{
+font-size:28px;
+font-weight:bold;
+}
 
-        .status{
-            padding:8px 15px;
-            border-radius:10px;
-            display:inline-block;
-            margin-top:10px;
-            font-weight:bold;
-            background:#22c55e;
-        }
+.green{
+color:#22c55e;
+}
 
-        .footer{
-            margin-top:20px;
-            text-align:center;
-            color:#64748b;
-        }
-    </style>
+.red{
+color:#ef4444;
+}
+
+.yellow{
+color:#facc15;
+}
+
+.chart-box{
+margin-top:30px;
+background:#0f172a;
+padding:20px;
+border-radius:20px;
+}
+
+</style>
 </head>
 <body>
 
-<h1>🚀 Futures Trading Bot Dashboard</h1>
+<div class="header">
+<div class="title">
+🚀 Sniper Scalping Dashboard
+</div>
+
+<div class="status">
+LIVE
+</div>
+</div>
 
 <div class="grid">
 
-    <div class="card">
-        <div class="title">STATUS BOT</div>
-        <div class="status" id="status">RUNNING</div>
-    </div>
+<div class="card">
+<div class="label">PAIR</div>
+<div class="value yellow" id="symbol">-</div>
+</div>
 
-    <div class="card">
-        <div class="title">BALANCE</div>
-        <div class="value">$<span id="balance">0</span></div>
-    </div>
+<div class="card">
+<div class="label">SIGNAL</div>
+<div class="value" id="signal">-</div>
+</div>
 
-    <div class="card">
-        <div class="title">TOTAL PNL</div>
-        <div class="value green">$<span id="pnl">0</span></div>
-    </div>
+<div class="card">
+<div class="label">PRICE</div>
+<div class="value" id="price">0</div>
+</div>
 
-    <div class="card">
-        <div class="title">WINRATE</div>
-        <div class="value"><span id="winrate">0</span>%</div>
-    </div>
+<div class="card">
+<div class="label">BALANCE</div>
+<div class="value green" id="balance">0</div>
+</div>
 
-    <div class="card">
-        <div class="title">TRADE COUNT</div>
-        <div class="value"><span id="trade_count">0</span></div>
-    </div>
+<div class="card">
+<div class="label">PNL</div>
+<div class="value" id="pnl">0</div>
+</div>
 
-    <div class="card">
-        <div class="title">PAIR</div>
-        <div class="value"><span id="pair">BTCUSDT</span></div>
-    </div>
+<div class="card">
+<div class="label">PNL IDR</div>
+<div class="value" id="pnl_idr">0</div>
+</div>
 
-    <div class="card">
-        <div class="title">POSITION</div>
-        <div class="value" id="position">LONG</div>
-    </div>
+<div class="card">
+<div class="label">POSITION</div>
+<div class="value" id="position">NONE</div>
+</div>
 
-    <div class="card">
-        <div class="title">BTC PRICE</div>
-        <div class="value">$<span id="price">0</span></div>
-    </div>
+<div class="card">
+<div class="label">ENTRY</div>
+<div class="value" id="entry">0</div>
+</div>
+
+<div class="card">
+<div class="label">RSI</div>
+<div class="value" id="rsi">0</div>
+</div>
+
+<div class="card">
+<div class="label">ADX</div>
+<div class="value" id="adx">0</div>
+</div>
+
+<div class="card">
+<div class="label">VOLUME RATIO</div>
+<div class="value" id="volume_ratio">0</div>
+</div>
+
+<div class="card">
+<div class="label">WINRATE</div>
+<div class="value" id="winrate">0%</div>
+</div>
 
 </div>
 
 <div class="chart-box">
-    <canvas id="pnlChart"></canvas>
+<h2 style="margin-bottom:20px;">📈 Realtime PNL Chart</h2>
+<canvas id="pnlChart"></canvas>
 </div>
 
-<div class="footer">
-    Trading Bot Monitor • Railway Hosting
+<div class="chart-box">
+<h2 style="margin-bottom:20px;">📊 Live TradingView Chart</h2>
+<div class="tradingview-widget-container">
+  <div id="tradingview_chart"></div>
 </div>
+</div>
+
+<script src="https://s3.tradingview.com/tv.js"></script>
 
 <script>
-    const ctx = document.getElementById('pnlChart');
 
-    const labels = [];
-    const data = [];
+const socket = io();
 
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Realtime PNL',
-                data: data,
-                borderWidth: 3,
-                tension: 0.3
-            }]
-        },
-        options: {
-            responsive: true
-        }
-    });
+const labels = [];
+const pnlData = [];
 
-    async function loadData(){
-        const res = await fetch('/api/data');
-        const d = await res.json();
+const ctx = document.getElementById('pnlChart');
 
-        document.getElementById('status').innerText = d.status;
-        document.getElementById('balance').innerText = d.balance.toFixed(2);
-        document.getElementById('pnl').innerText = d.pnl.toFixed(2);
-        document.getElementById('winrate').innerText = d.winrate;
-        document.getElementById('trade_count').innerText = d.trade_count;
-        document.getElementById('pair').innerText = d.pair;
-        document.getElementById('position').innerText = d.position;
-        document.getElementById('price').innerText = d.price;
+const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Realtime PNL',
+            data: pnlData,
+            borderWidth: 3,
+            tension: 0.4
+        }]
+    }
+});
 
-        labels.push(new Date().toLocaleTimeString());
-        data.push(d.pnl);
+new TradingView.widget({
+  "width": "100%",
+  "height": 500,
+  "symbol": "BINANCE:DOGEUSDT",
+  "interval": "3",
+  "timezone": "Asia/Jakarta",
+  "theme": "dark",
+  "style": "1",
+  "locale": "en",
+  "toolbar_bg": "#0f172a",
+  "enable_publishing": false,
+  "hide_top_toolbar": false,
+  "save_image": false,
+  "container_id": "tradingview_chart"
+});
 
-        if(labels.length > 15){
-            labels.shift();
-            data.shift();
-        }
+socket.on('update', function(data){
 
-        chart.update();
+    document.getElementById('symbol').innerText = data.symbol;
+    document.getElementById('signal').innerText = data.signal;
+    document.getElementById('price').innerText = Number(data.price).toFixed(4);
+    document.getElementById('balance').innerText = '$' + Number(data.balance).toFixed(2);
+    document.getElementById('pnl').innerText = Number(data.pnl).toFixed(4);
+    document.getElementById('pnl_idr').innerText = 'Rp ' + Number(data.pnl_idr).toLocaleString();
+    document.getElementById('position').innerText = data.position;
+    document.getElementById('entry').innerText = Number(data.entry).toFixed(4);
+    document.getElementById('rsi').innerText = Number(data.rsi).toFixed(2);
+    document.getElementById('adx').innerText = Number(data.adx).toFixed(2);
+    document.getElementById('volume_ratio').innerText = Number(data.volume_ratio).toFixed(2);
+    document.getElementById('winrate').innerText = Number(data.winrate).toFixed(2) + '%';
 
-        const pnlElement = document.getElementById('pnl');
+    labels.push(new Date().toLocaleTimeString());
+    pnlData.push(data.pnl);
 
-        if(d.pnl >= 0){
-            pnlElement.parentElement.classList.remove("red");
-            pnlElement.parentElement.classList.add("green");
-        }else{
-            pnlElement.parentElement.classList.remove("green");
-            pnlElement.parentElement.classList.add("red");
-        }
+    if(labels.length > 30){
+        labels.shift();
+        pnlData.shift();
     }
 
-    setInterval(loadData, 2000);
+    chart.update();
 
-    loadData();
+});
+
 </script>
 
 </body>
