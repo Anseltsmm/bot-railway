@@ -7,3 +7,16 @@ gunicorn
 requests
 pysocks
 python-dotenv
+flask
+gunicorn
+python-binance
+python-dotenv
+pandas
+numpy
+requests
+rich
+PySocks
+websocket-client
+urllib3
+flask-socketio
+eventlet
