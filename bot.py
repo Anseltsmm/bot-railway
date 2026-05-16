@@ -3,7 +3,7 @@ import time
 import math
 import requests
 
-from flask import Flask
+from flask import Flask, render_template, jsonify
 from threading import Thread
 
 from dotenv import load_dotenv
@@ -91,16 +91,6 @@ console = Console()
 # =========================
 app = Flask(__name__)
 
-@app.route("/")
-def home():
-    return "BOT RUNNING"
-
-def run_web():
-    app.run(
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 8080))
-    )
-
 # =========================
 # CONFIG
 # =========================
@@ -112,6 +102,26 @@ SYMBOL = os.getenv(
 )
 
 TRADE_COOLDOWN = 300
+
+# =========================
+# WEB DATA
+# =========================
+web_data = {
+    "status": "RUNNING",
+    "symbol": SYMBOL,
+    "signal": "NONE",
+    "price": 0,
+    "ema50": 0,
+    "ema200": 0,
+    "position": "-",
+    "entry": 0,
+    "trail_price": 0,
+    "highest_price": 0,
+    "lowest_price": 0,
+    "pnl": 0,
+    "pnl_idr": 0,
+    "balance": 0
+}
 
 # =========================
 # STATE
@@ -127,6 +137,23 @@ state = {
 }
 
 last_trade_time = 0
+
+# =========================
+# WEB ROUTES
+# =========================
+@app.route("/")
+def home():
+    return render_template("dashboard.html")
+
+@app.route("/api/data")
+def api_data():
+    return jsonify(web_data)
+
+def run_web():
+    app.run(
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8080))
+    )
 
 # =========================
 # MARKET
@@ -426,9 +453,62 @@ def update_trailing_stop(symbol):
 # =========================
 def dashboard(symbol, data):
 
-    console.clear()
+    try:
+
+        balance_info = client.futures_account_balance()
+
+        usdt_balance = 0
+
+        for b in balance_info:
+
+            if b["asset"] == "USDT":
+                usdt_balance = float(b["balance"])
+                break
+
+    except:
+        usdt_balance = 0
 
     pnl = unrealized_pnl(symbol)
+
+    # =========================
+    # UPDATE WEB DATA
+    # =========================
+    web_data["status"] = "RUNNING"
+
+    web_data["symbol"] = symbol
+
+    web_data["signal"] = data["signal"]
+
+    web_data["price"] = data["price"]
+
+    web_data["ema50"] = data["ema50"]
+
+    web_data["ema200"] = data["ema200"]
+
+    web_data["position"] = (
+        state["side"]
+        if state["side"]
+        else "-"
+    )
+
+    web_data["entry"] = state["entry"]
+
+    web_data["trail_price"] = state["trail_price"]
+
+    web_data["highest_price"] = state["highest_price"]
+
+    web_data["lowest_price"] = state["lowest_price"]
+
+    web_data["pnl"] = pnl
+
+    web_data["pnl_idr"] = pnl * USD_IDR
+
+    web_data["balance"] = usdt_balance
+
+    # =========================
+    # TERMINAL DASHBOARD
+    # =========================
+    console.clear()
 
     pnl_color = (
         "green"
@@ -506,16 +586,6 @@ def dashboard(symbol, data):
     market.add_row(
         "Trailing SL",
         f"[red]{state['trail_price']:.4f}[/red]"
-    )
-
-    market.add_row(
-        "Highest",
-        f"[green]{state['highest_price']:.4f}[/green]"
-    )
-
-    market.add_row(
-        "Lowest",
-        f"[red]{state['lowest_price']:.4f}[/red]"
     )
 
     market.add_row(
