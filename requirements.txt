@@ -1,0 +1,8 @@
+python-binance
+pandas
+ta
+rich
+flask
+gunicorn
+requests
+pysocks
