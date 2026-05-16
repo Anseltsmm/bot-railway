@@ -6,3 +6,4 @@ flask
 gunicorn
 requests
 pysocks
+python-dotenv
