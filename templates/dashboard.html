@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+            font-family:Arial;
+        }
+
+        body{
+            background:#0f172a;
+            color:white;
+            padding:20px;
+        }
+
+        h1{
+            margin-bottom:20px;
+        }
+
+        .grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+            gap:20px;
+        }
+
+        .card{
+            background:#1e293b;
+            padding:20px;
+            border-radius:20px;
+            box-shadow:0 0 15px rgba(0,0,0,0.3);
+        }
+
+        .title{
+            font-size:14px;
+            color:#94a3b8;
+        }
+
+        .value{
+            font-size:28px;
+            margin-top:10px;
+            font-weight:bold;
+        }
+
+        .green{
+            color:#22c55e;
+        }
+
+        .red{
+            color:#ef4444;
+        }
+
+        .chart-box{
+            margin-top:30px;
+            background:#1e293b;
+            padding:20px;
+            border-radius:20px;
+        }
+
+        .status{
+            padding:8px 15px;
+            border-radius:10px;
+            display:inline-block;
+            margin-top:10px;
+            font-weight:bold;
+            background:#22c55e;
+        }
+
+        .footer{
+            margin-top:20px;
+            text-align:center;
+            color:#64748b;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🚀 Futures Trading Bot Dashboard</h1>
+
+<div class="grid">
+
+    <div class="card">
+        <div class="title">STATUS BOT</div>
+        <div class="status" id="status">RUNNING</div>
+    </div>
+
+    <div class="card">
+        <div class="title">BALANCE</div>
+        <div class="value">$<span id="balance">0</span></div>
+    </div>
+
+    <div class="card">
+        <div class="title">TOTAL PNL</div>
+        <div class="value green">$<span id="pnl">0</span></div>
+    </div>
+
+    <div class="card">
+        <div class="title">WINRATE</div>
+        <div class="value"><span id="winrate">0</span>%</div>
+    </div>
+
+    <div class="card">
+        <div class="title">TRADE COUNT</div>
+        <div class="value"><span id="trade_count">0</span></div>
+    </div>
+
+    <div class="card">
+        <div class="title">PAIR</div>
+        <div class="value"><span id="pair">BTCUSDT</span></div>
+    </div>
+
+    <div class="card">
+        <div class="title">POSITION</div>
+        <div class="value" id="position">LONG</div>
+    </div>
+
+    <div class="card">
+        <div class="title">BTC PRICE</div>
+        <div class="value">$<span id="price">0</span></div>
+    </div>
+
+</div>
+
+<div class="chart-box">
+    <canvas id="pnlChart"></canvas>
+</div>
+
+<div class="footer">
+    Trading Bot Monitor • Railway Hosting
+</div>
+
+<script>
+    const ctx = document.getElementById('pnlChart');
+
+    const labels = [];
+    const data = [];
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Realtime PNL',
+                data: data,
+                borderWidth: 3,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true
+        }
+    });
+
+    async function loadData(){
+        const res = await fetch('/api/data');
+        const d = await res.json();
+
+        document.getElementById('status').innerText = d.status;
+        document.getElementById('balance').innerText = d.balance.toFixed(2);
+        document.getElementById('pnl').innerText = d.pnl.toFixed(2);
+        document.getElementById('winrate').innerText = d.winrate;
+        document.getElementById('trade_count').innerText = d.trade_count;
+        document.getElementById('pair').innerText = d.pair;
+        document.getElementById('position').innerText = d.position;
+        document.getElementById('price').innerText = d.price;
+
+        labels.push(new Date().toLocaleTimeString());
+        data.push(d.pnl);
+
+        if(labels.length > 15){
+            labels.shift();
+            data.shift();
+        }
+
+        chart.update();
+
+        const pnlElement = document.getElementById('pnl');
+
+        if(d.pnl >= 0){
+            pnlElement.parentElement.classList.remove("red");
+            pnlElement.parentElement.classList.add("green");
+        }else{
+            pnlElement.parentElement.classList.remove("green");
+            pnlElement.parentElement.classList.add("red");
+        }
+    }
+
+    setInterval(loadData, 2000);
+
+    loadData();
+</script>
+
+</body>
+</html>
