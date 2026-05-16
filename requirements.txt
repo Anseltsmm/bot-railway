@@ -20,3 +20,6 @@ websocket-client
 urllib3
 flask-socketio
 eventlet
+gunicorn
+gevent
+gevent-websocket
