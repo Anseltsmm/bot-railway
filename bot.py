@@ -36,7 +36,7 @@ SYMBOL = os.getenv("SYMBOL", "DOGEUSDT")
 INTERVAL = os.getenv("INTERVAL", "1m")
 
 LEVERAGE = int(os.getenv("LEVERAGE", 10))
-ORDER_USDT = float(os.getenv("ORDER_USDT", 1))
+ORDER_USDT = float(os.getenv("ORDER_USDT", 5))
 
 TP_ROI = float(os.getenv("TP_ROI", 0.004))
 SL_ROI = float(os.getenv("SL_ROI", 0.003))
@@ -91,39 +91,24 @@ state = {
 web_data = {
     "status": "RUNNING",
     "symbol": SYMBOL,
-
     "signal": "NONE",
-
     "price": 0,
-
     "ema9": 0,
     "ema21": 0,
     "ema200": 0,
-
     "rsi": 0,
-
     "volume_ratio": 0,
-
     "candle_strength": 0,
-
     "atr_percent": 0,
-
     "long_score": 0,
     "short_score": 0,
-
     "position": "NONE",
-
     "entry": 0,
-
     "trail": 0,
-
     "pnl": 0,
     "pnl_idr": 0,
-
     "balance": 0,
-
     "trade_count": 0,
-
     "winrate": 0
 }
 
@@ -180,13 +165,12 @@ def get_klines(symbol):
         "close",
         "volume"
     ]:
-
         df[col] = df[col].astype(float)
 
     return df
 
 # =========================
-# ADAPTIVE SNIPER SIGNAL
+# SIGNAL
 # =========================
 def signal(symbol):
 
@@ -200,28 +184,11 @@ def signal(symbol):
         openp = df["open"]
         volume = df["volume"]
 
-        # =========================
-        # INDICATORS
-        # =========================
-        ema9 = EMAIndicator(
-            close,
-            9
-        ).ema_indicator()
+        ema9 = EMAIndicator(close, 9).ema_indicator()
+        ema21 = EMAIndicator(close, 21).ema_indicator()
+        ema200 = EMAIndicator(close, 200).ema_indicator()
 
-        ema21 = EMAIndicator(
-            close,
-            21
-        ).ema_indicator()
-
-        ema200 = EMAIndicator(
-            close,
-            200
-        ).ema_indicator()
-
-        rsi = RSIIndicator(
-            close,
-            14
-        ).rsi()
+        rsi = RSIIndicator(close, 14).rsi()
 
         atr = AverageTrueRange(
             high,
@@ -237,9 +204,6 @@ def signal(symbol):
             avg_volume.iloc[-1]
         )
 
-        # =========================
-        # CANDLE STRENGTH
-        # =========================
         candle_body = abs(
             close.iloc[-1] -
             openp.iloc[-1]
@@ -253,15 +217,11 @@ def signal(symbol):
         candle_strength = 0
 
         if candle_range > 0:
-
             candle_strength = (
                 candle_body /
                 candle_range
             )
 
-        # =========================
-        # ATR %
-        # =========================
         atr_percent = (
             atr.iloc[-1] /
             close.iloc[-1]
@@ -278,13 +238,13 @@ def signal(symbol):
         if ema21.iloc[-1] > ema200.iloc[-1]:
             long_score += 20
 
-        if rsi.iloc[-1] > 55:
+        if rsi.iloc[-1] > 52:
             long_score += 20
 
-        if volume_ratio > 1.1:
+        if volume_ratio > 1.05:
             long_score += 20
 
-        if candle_strength > 0.5:
+        if candle_strength > 0.4:
             long_score += 15
 
         # =========================
@@ -298,13 +258,13 @@ def signal(symbol):
         if ema21.iloc[-1] < ema200.iloc[-1]:
             short_score += 20
 
-        if rsi.iloc[-1] < 45:
+        if rsi.iloc[-1] < 48:
             short_score += 20
 
-        if volume_ratio > 1.1:
+        if volume_ratio > 1.05:
             short_score += 20
 
-        if candle_strength > 0.5:
+        if candle_strength > 0.4:
             short_score += 15
 
         # =========================
@@ -313,39 +273,40 @@ def signal(symbol):
         sig = "NONE"
 
         if (
-            long_score >= 70
-            and atr_percent > 0.15
+            long_score >= 60
+            and atr_percent > 0.03
         ):
-
             sig = "LONG"
 
         elif (
-            short_score >= 70
-            and atr_percent > 0.15
+            short_score >= 60
+            and atr_percent > 0.03
         ):
-
             sig = "SHORT"
 
+        console.print(
+            f"""
+[cyan]SIGNAL[/cyan]
+LONG SCORE  : {long_score}
+SHORT SCORE : {short_score}
+RSI         : {rsi.iloc[-1]:.2f}
+ATR %       : {atr_percent:.4f}
+VOL RATIO   : {volume_ratio:.2f}
+SIGNAL      : {sig}
+"""
+        )
+
         return {
-
             "signal": sig,
-
             "price": close.iloc[-1],
-
             "ema9": ema9.iloc[-1],
             "ema21": ema21.iloc[-1],
             "ema200": ema200.iloc[-1],
-
             "rsi": rsi.iloc[-1],
-
             "volume_ratio": volume_ratio,
-
             "candle_strength": candle_strength,
-
             "atr_percent": atr_percent,
-
             "long_score": long_score,
-
             "short_score": short_score
         }
 
@@ -356,25 +317,16 @@ def signal(symbol):
         )
 
         return {
-
             "signal": "NONE",
-
             "price": 0,
-
             "ema9": 0,
             "ema21": 0,
             "ema200": 0,
-
             "rsi": 0,
-
             "volume_ratio": 0,
-
             "candle_strength": 0,
-
             "atr_percent": 0,
-
             "long_score": 0,
-
             "short_score": 0
         }
 
@@ -391,11 +343,16 @@ def get_position(symbol):
 
         for p in positions:
 
-            if float(p["positionAmt"]) != 0:
+            amt = float(p["positionAmt"])
+
+            if abs(amt) > 0.000001:
                 return p
 
-    except:
-        pass
+    except Exception as e:
+
+        console.print(
+            f"[red]POSITION ERROR:[/red] {e}"
+        )
 
     return None
 
@@ -440,17 +397,12 @@ def get_lot_filters(symbol):
 # =========================
 def safe_qty(qty, step, min_qty):
 
-    precision = max(
-        0,
-        int(round(-math.log(step, 10), 0))
-    )
-
-    qty = round(qty, precision)
+    qty = math.floor(qty / step) * step
 
     if qty < min_qty:
         qty = min_qty
 
-    return qty
+    return float(f"{qty:.8f}")
 
 # =========================
 # SETUP
@@ -464,8 +416,15 @@ def setup_symbol(symbol):
             leverage=LEVERAGE
         )
 
-    except:
-        pass
+        console.print(
+            f"[green]LEVERAGE SET:[/green] {LEVERAGE}x"
+        )
+
+    except Exception as e:
+
+        console.print(
+            f"[red]LEVERAGE ERROR:[/red] {e}"
+        )
 
     try:
 
@@ -474,8 +433,15 @@ def setup_symbol(symbol):
             marginType=MARGIN_TYPE
         )
 
-    except:
-        pass
+        console.print(
+            f"[green]MARGIN:[/green] {MARGIN_TYPE}"
+        )
+
+    except Exception as e:
+
+        console.print(
+            f"[yellow]MARGIN WARNING:[/yellow] {e}"
+        )
 
 # =========================
 # OPEN POSITION
@@ -484,12 +450,14 @@ def open_position(symbol, side, qty):
 
     try:
 
-        return client.futures_create_order(
+        order = client.futures_create_order(
             symbol=symbol,
             side=SIDE_BUY if side == "LONG" else SIDE_SELL,
             type=ORDER_TYPE_MARKET,
             quantity=qty
         )
+
+        return order
 
     except Exception as e:
 
@@ -513,6 +481,18 @@ def close_position(symbol, side, qty):
             quantity=qty,
             reduceOnly=True
         )
+
+        console.print(
+            "[green]POSITION CLOSED[/green]"
+        )
+
+        # RESET STATE
+        state["side"] = None
+        state["entry"] = 0
+        state["qty"] = 0
+        state["highest"] = 0
+        state["lowest"] = 999999
+        state["trail"] = 0
 
     except Exception as e:
 
@@ -557,6 +537,10 @@ def update_trailing(symbol):
 
         if price <= trail:
 
+            console.print(
+                "[red]TRAIL HIT LONG[/red]"
+            )
+
             close_position(
                 symbol,
                 side,
@@ -579,6 +563,10 @@ def update_trailing(symbol):
         state["trail"] = trail
 
         if price >= trail:
+
+            console.print(
+                "[red]TRAIL HIT SHORT[/red]"
+            )
 
             close_position(
                 symbol,
@@ -610,7 +598,6 @@ def update_dashboard(data):
                 break
 
     except:
-
         usdt_balance = 0
 
     winrate = 0
@@ -666,14 +653,14 @@ def update_dashboard(data):
     )
 
 # =========================
-# TERMINAL DASHBOARD
+# DASHBOARD TERMINAL
 # =========================
 def terminal_dashboard(data):
 
     console.clear()
 
     table = Table(
-        title="ADAPTIVE SNIPER SCALPING BOT",
+        title="ADAPTIVE SNIPER BOT",
         box=box.DOUBLE_EDGE
     )
 
@@ -696,18 +683,8 @@ def terminal_dashboard(data):
     )
 
     table.add_row(
-        "Volume Ratio",
-        f'{data["volume_ratio"]:.2f}'
-    )
-
-    table.add_row(
-        "Candle Strength",
-        f'{data["candle_strength"]:.2f}'
-    )
-
-    table.add_row(
         "ATR %",
-        f'{data["atr_percent"]:.2f}'
+        f'{data["atr_percent"]:.4f}'
     )
 
     table.add_row(
@@ -792,6 +769,28 @@ def run_bot():
                     min_qty
                 )
 
+                notional = qty * data["price"]
+
+                console.print(
+                    f"""
+[green]TRY ENTRY[/green]
+SIDE      : {data["signal"]}
+QTY       : {qty}
+PRICE     : {data["price"]}
+NOTIONAL  : {notional}
+"""
+                )
+
+                if notional < 5:
+
+                    console.print(
+                        "[red]NOTIONAL TOO SMALL[/red]"
+                    )
+
+                    socketio.sleep(5)
+
+                    continue
+
                 order = open_position(
                     SYMBOL,
                     data["signal"],
@@ -840,4 +839,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", 8080)),
         debug=False
-)
+    )
