@@ -6,6 +6,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 import os
 import math
+import time
 import pandas as pd
 
 from flask import Flask, render_template, jsonify
@@ -36,11 +37,11 @@ SYMBOL = os.getenv("SYMBOL", "DOGEUSDT")
 INTERVAL = os.getenv("INTERVAL", "1m")
 
 LEVERAGE = int(os.getenv("LEVERAGE", 5))
-ORDER_USDT = float(os.getenv("ORDER_USDT", 1))
+ORDER_USDT = float(os.getenv("ORDER_USDT", 5))
 
-TP_ROI = float(os.getenv("TP_ROI", 0.05))
-SL_ROI = float(os.getenv("SL_ROI", 0.03))
-TRAIL_ROI = float(os.getenv("TRAIL_ROI", 0.02))
+TP_ROI = float(os.getenv("TP_ROI", 0.02))
+SL_ROI = float(os.getenv("SL_ROI", 0.01))
+TRAIL_ROI = float(os.getenv("TRAIL_ROI", 0.8))
 
 USD_IDR = int(os.getenv("USD_IDR", 15800))
 
@@ -57,9 +58,6 @@ PROXY_PORT = os.getenv("PROXY_PORT")
 PROXY_USER = os.getenv("PROXY_USER")
 PROXY_PASS = os.getenv("PROXY_PASS")
 
-# =========================
-# PROXY URL
-# =========================
 proxy_url = None
 
 if PROXY_HOST and PROXY_PORT:
@@ -115,12 +113,9 @@ else:
         "[yellow]NO PROXY ENABLED[/yellow]"
     )
 
-# =========================
-# TEST BINANCE CONNECTION
-# =========================
 try:
 
-    server_time = client.get_server_time()
+    client.get_server_time()
 
     console.print(
         "[green]BINANCE CONNECTED[/green]"
@@ -147,41 +142,71 @@ socketio = SocketIO(
 # STATE
 # =========================
 state = {
+
     "side": None,
+
     "entry": 0,
+
     "qty": 0,
-    "highest": 0,
-    "lowest": 999999,
-    "trail": 0,
+
     "trade_count": 0,
+
     "win": 0,
-    "loss": 0
+
+    "loss": 0,
+
+    "tp_price": 0,
+
+    "sl_price": 0,
+
+    "last_trade": 0
 }
 
 # =========================
 # WEB DATA
 # =========================
 web_data = {
+
     "status": "RUNNING",
+
     "symbol": SYMBOL,
+
     "signal": "NONE",
+
     "price": 0,
+
     "ema9": 0,
+
     "ema21": 0,
+
     "ema200": 0,
+
     "rsi": 0,
+
     "volume_ratio": 0,
-    "candle_strength": 0,
+
     "atr_percent": 0,
-    "long_score": 0,
-    "short_score": 0,
+
+    "distance_ema": 0,
+
+    "trend": "NONE",
+
     "position": "NONE",
+
     "entry": 0,
-    "trail": 0,
+
+    "tp_price": 0,
+
+    "sl_price": 0,
+
     "pnl": 0,
+
     "pnl_idr": 0,
+
     "balance": 0,
+
     "trade_count": 0,
+
     "winrate": 0
 }
 
@@ -231,13 +256,8 @@ def get_klines(symbol):
         "volume"
     ]
 
-    for col in [
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume"
-    ]:
+    for col in df.columns[1:]:
+
         df[col] = df[col].astype(float)
 
     return df
@@ -257,11 +277,25 @@ def signal(symbol):
         openp = df["open"]
         volume = df["volume"]
 
-        ema9 = EMAIndicator(close, 9).ema_indicator()
-        ema21 = EMAIndicator(close, 21).ema_indicator()
-        ema200 = EMAIndicator(close, 200).ema_indicator()
+        ema9 = EMAIndicator(
+            close,
+            9
+        ).ema_indicator()
 
-        rsi = RSIIndicator(close, 14).rsi()
+        ema21 = EMAIndicator(
+            close,
+            21
+        ).ema_indicator()
+
+        ema200 = EMAIndicator(
+            close,
+            200
+        ).ema_indicator()
+
+        rsi = RSIIndicator(
+            close,
+            14
+        ).rsi()
 
         atr = AverageTrueRange(
             high,
@@ -277,89 +311,111 @@ def signal(symbol):
             avg_volume.iloc[-1]
         )
 
-        candle_body = abs(
-            close.iloc[-1] -
-            openp.iloc[-1]
-        )
-
-        candle_range = (
-            high.iloc[-1] -
-            low.iloc[-1]
-        )
-
-        candle_strength = 0
-
-        if candle_range > 0:
-            candle_strength = (
-                candle_body /
-                candle_range
-            )
-
         atr_percent = (
             atr.iloc[-1] /
             close.iloc[-1]
         ) * 100
 
-        long_score = 0
+        current_price = close.iloc[-1]
 
-        if ema9.iloc[-1] > ema21.iloc[-1]:
-            long_score += 25
+        bullish_trend = (
+            ema21.iloc[-1] >
+            ema200.iloc[-1]
+        )
 
-        if ema21.iloc[-1] > ema200.iloc[-1]:
-            long_score += 20
+        bearish_trend = (
+            ema21.iloc[-1] <
+            ema200.iloc[-1]
+        )
 
-        if rsi.iloc[-1] > 52:
-            long_score += 20
+        pullback_long = (
+            current_price <=
+            ema9.iloc[-1] * 1.002
+        )
 
-        if volume_ratio > 1.05:
-            long_score += 20
+        pullback_short = (
+            current_price >=
+            ema9.iloc[-1] * 0.998
+        )
 
-        if candle_strength > 0.4:
-            long_score += 15
+        bullish_reject = (
+            close.iloc[-1] >
+            openp.iloc[-1]
+        )
 
-        short_score = 0
+        bearish_reject = (
+            close.iloc[-1] <
+            openp.iloc[-1]
+        )
 
-        if ema9.iloc[-1] < ema21.iloc[-1]:
-            short_score += 25
+        distance_ema = abs(
+            current_price -
+            ema9.iloc[-1]
+        ) / current_price
 
-        if ema21.iloc[-1] < ema200.iloc[-1]:
-            short_score += 20
+        not_too_far = (
+            distance_ema <= 0.003
+        )
 
-        if rsi.iloc[-1] < 48:
-            short_score += 20
-
-        if volume_ratio > 1.05:
-            short_score += 20
-
-        if candle_strength > 0.4:
-            short_score += 15
+        good_volume = (
+            volume_ratio > 1.1
+        )
 
         sig = "NONE"
 
         if (
-            long_score >= 60
-            and atr_percent > 0.03
+
+            bullish_trend
+            and pullback_long
+            and bullish_reject
+            and good_volume
+            and not_too_far
+            and rsi.iloc[-1] > 50
+            and atr_percent > 0.05
+
         ):
+
             sig = "LONG"
 
         elif (
-            short_score >= 60
-            and atr_percent > 0.03
+
+            bearish_trend
+            and pullback_short
+            and bearish_reject
+            and good_volume
+            and not_too_far
+            and rsi.iloc[-1] < 50
+            and atr_percent > 0.05
+
         ):
+
             sig = "SHORT"
 
         return {
+
             "signal": sig,
-            "price": close.iloc[-1],
+
+            "price": current_price,
+
             "ema9": ema9.iloc[-1],
+
             "ema21": ema21.iloc[-1],
+
             "ema200": ema200.iloc[-1],
+
             "rsi": rsi.iloc[-1],
+
             "volume_ratio": volume_ratio,
-            "candle_strength": candle_strength,
+
             "atr_percent": atr_percent,
-            "long_score": long_score,
-            "short_score": short_score
+
+            "distance_ema": distance_ema,
+
+            "trend": (
+                "BULLISH"
+                if bullish_trend
+                else "BEARISH"
+            )
         }
 
     except Exception as e:
@@ -385,7 +441,9 @@ def get_position(symbol):
 
         for p in positions:
 
-            amt = float(p["positionAmt"])
+            amt = float(
+                p["positionAmt"]
+            )
 
             if abs(amt) > 0.000001:
                 return p
@@ -439,6 +497,13 @@ def get_lot_filters(symbol):
 # =========================
 def safe_qty(qty, step, min_qty):
 
+    precision = max(
+        0,
+        int(round(-math.log(step, 10), 0))
+    )
+
+    qty = round(qty, precision)
+
     qty = math.floor(qty / step) * step
 
     if qty < min_qty:
@@ -458,15 +523,8 @@ def setup_symbol(symbol):
             leverage=LEVERAGE
         )
 
-        console.print(
-            f"[green]LEVERAGE SET:[/green] {LEVERAGE}x"
-        )
-
-    except Exception as e:
-
-        console.print(
-            f"[red]LEVERAGE ERROR:[/red] {e}"
-        )
+    except:
+        pass
 
     try:
 
@@ -475,15 +533,8 @@ def setup_symbol(symbol):
             marginType=MARGIN_TYPE
         )
 
-        console.print(
-            f"[green]MARGIN:[/green] {MARGIN_TYPE}"
-        )
-
-    except Exception as e:
-
-        console.print(
-            f"[yellow]MARGIN WARNING:[/yellow] {e}"
-        )
+    except:
+        pass
 
 # =========================
 # OPEN POSITION
@@ -493,9 +544,95 @@ def open_position(symbol, side, qty):
     try:
 
         order = client.futures_create_order(
+
             symbol=symbol,
-            side=SIDE_BUY if side == "LONG" else SIDE_SELL,
+
+            side=(
+                SIDE_BUY
+                if side == "LONG"
+                else SIDE_SELL
+            ),
+
             type=ORDER_TYPE_MARKET,
+
+            quantity=qty
+        )
+
+        entry_price = get_price(symbol)
+
+        if side == "LONG":
+
+            tp_price = (
+                entry_price *
+                (1 + TP_ROI)
+            )
+
+            sl_price = (
+                entry_price *
+                (1 - SL_ROI)
+            )
+
+            stop_side = SIDE_SELL
+
+        else:
+
+            tp_price = (
+                entry_price *
+                (1 - TP_ROI)
+            )
+
+            sl_price = (
+                entry_price *
+                (1 + SL_ROI)
+            )
+
+            stop_side = SIDE_BUY
+
+        state["tp_price"] = tp_price
+        state["sl_price"] = sl_price
+
+        # TAKE PROFIT
+        client.futures_create_order(
+
+            symbol=symbol,
+
+            side=stop_side,
+
+            type="TAKE_PROFIT_MARKET",
+
+            stopPrice=round(tp_price, 6),
+
+            closePosition=True
+        )
+
+        # STOP LOSS
+        client.futures_create_order(
+
+            symbol=symbol,
+
+            side=stop_side,
+
+            type="STOP_MARKET",
+
+            stopPrice=round(sl_price, 6),
+
+            closePosition=True
+        )
+
+        # BINANCE TRAILING
+        client.futures_create_order(
+
+            symbol=symbol,
+
+            side=stop_side,
+
+            type="TRAILING_STOP_MARKET",
+
+            callbackRate=max(
+                0.1,
+                TRAIL_ROI
+            ),
+
             quantity=qty
         )
 
@@ -508,113 +645,6 @@ def open_position(symbol, side, qty):
         )
 
     return None
-
-# =========================
-# CLOSE POSITION
-# =========================
-def close_position(symbol, side, qty):
-
-    try:
-
-        client.futures_create_order(
-            symbol=symbol,
-            side=SIDE_SELL if side == "LONG" else SIDE_BUY,
-            type=ORDER_TYPE_MARKET,
-            quantity=qty,
-            reduceOnly=True
-        )
-
-        console.print(
-            "[green]POSITION CLOSED[/green]"
-        )
-
-        # RESET STATE
-        state["side"] = None
-        state["entry"] = 0
-        state["qty"] = 0
-        state["highest"] = 0
-        state["lowest"] = 999999
-        state["trail"] = 0
-
-    except Exception as e:
-
-        console.print(
-            f"[red]CLOSE ERROR:[/red] {e}"
-        )
-
-# =========================
-# TRAILING STOP
-# =========================
-def update_trailing(symbol):
-
-    pos = get_position(symbol)
-
-    if not pos:
-        return
-
-    amt = float(pos["positionAmt"])
-
-    side = (
-        "LONG"
-        if amt > 0
-        else "SHORT"
-    )
-
-    price = get_price(symbol)
-
-    # =========================
-    # LONG
-    # =========================
-    if side == "LONG":
-
-        if price > state["highest"]:
-            state["highest"] = price
-
-        trail = (
-            state["highest"] *
-            (1 - TRAIL_ROI)
-        )
-
-        state["trail"] = trail
-
-        if price <= trail:
-
-            console.print(
-                "[red]TRAIL HIT LONG[/red]"
-            )
-
-            close_position(
-                symbol,
-                side,
-                abs(amt)
-            )
-
-    # =========================
-    # SHORT
-    # =========================
-    else:
-
-        if price < state["lowest"]:
-            state["lowest"] = price
-
-        trail = (
-            state["lowest"] *
-            (1 + TRAIL_ROI)
-        )
-
-        state["trail"] = trail
-
-        if price >= trail:
-
-            console.print(
-                "[red]TRAIL HIT SHORT[/red]"
-            )
-
-            close_position(
-                symbol,
-                side,
-                abs(amt)
-            )
 
 # =========================
 # UPDATE DASHBOARD
@@ -640,6 +670,7 @@ def update_dashboard(data):
                 break
 
     except:
+
         usdt_balance = 0
 
     winrate = 0
@@ -658,25 +689,31 @@ def update_dashboard(data):
         "price": data["price"],
 
         "ema9": data["ema9"],
+
         "ema21": data["ema21"],
+
         "ema200": data["ema200"],
 
         "rsi": data["rsi"],
 
         "volume_ratio": data["volume_ratio"],
 
-        "candle_strength": data["candle_strength"],
-
         "atr_percent": data["atr_percent"],
 
-        "long_score": data["long_score"],
-        "short_score": data["short_score"],
+        "distance_ema": data["distance_ema"],
 
-        "position": state["side"] or "NONE",
+        "trend": data["trend"],
+
+        "position": (
+            state["side"]
+            or "NONE"
+        ),
 
         "entry": state["entry"],
 
-        "trail": state["trail"],
+        "tp_price": state["tp_price"],
+
+        "sl_price": state["sl_price"],
 
         "pnl": pnl,
 
@@ -695,14 +732,14 @@ def update_dashboard(data):
     )
 
 # =========================
-# DASHBOARD TERMINAL
+# TERMINAL
 # =========================
 def terminal_dashboard(data):
 
     console.clear()
 
     table = Table(
-        title="ADAPTIVE SNIPER BOT",
+        title="MARKET STRUCTURE BOT",
         box=box.DOUBLE_EDGE
     )
 
@@ -712,6 +749,11 @@ def terminal_dashboard(data):
     table.add_row(
         "Signal",
         str(data["signal"])
+    )
+
+    table.add_row(
+        "Trend",
+        str(data["trend"])
     )
 
     table.add_row(
@@ -725,18 +767,18 @@ def terminal_dashboard(data):
     )
 
     table.add_row(
+        "Volume",
+        f'{data["volume_ratio"]:.2f}'
+    )
+
+    table.add_row(
         "ATR %",
         f'{data["atr_percent"]:.4f}'
     )
 
     table.add_row(
-        "LONG Score",
-        str(data["long_score"])
-    )
-
-    table.add_row(
-        "SHORT Score",
-        str(data["short_score"])
+        "Distance EMA",
+        f'{data["distance_ema"]:.4f}'
     )
 
     table.add_row(
@@ -780,14 +822,27 @@ def run_bot():
 
             pos = get_position(SYMBOL)
 
-            # =========================
-            # POSITION ACTIVE
-            # =========================
             if pos:
 
-                update_trailing(SYMBOL)
-
                 socketio.sleep(2)
+
+                continue
+
+            # =========================
+            # COOLDOWN
+            # =========================
+            cooldown = 60
+
+            if (
+                time.time() -
+                state["last_trade"]
+            ) < cooldown:
+
+                console.print(
+                    "[yellow]ENTRY COOLDOWN[/yellow]"
+                )
+
+                socketio.sleep(5)
 
                 continue
 
@@ -811,16 +866,9 @@ def run_bot():
                     min_qty
                 )
 
-                notional = qty * data["price"]
-
-                console.print(
-                    f"""
-[green]TRY ENTRY[/green]
-SIDE      : {data["signal"]}
-QTY       : {qty}
-PRICE     : {data["price"]}
-NOTIONAL  : {notional}
-"""
+                notional = (
+                    qty *
+                    data["price"]
                 )
 
                 if notional < 5:
@@ -847,11 +895,9 @@ NOTIONAL  : {notional}
 
                     state["qty"] = qty
 
-                    state["highest"] = data["price"]
-
-                    state["lowest"] = data["price"]
-
                     state["trade_count"] += 1
+
+                    state["last_trade"] = time.time()
 
                     console.print(
                         f"[bold green]ENTRY {data['signal']} SUCCESS[/bold green]"
@@ -877,8 +923,17 @@ if __name__ == "__main__":
     )
 
     socketio.run(
+
         app,
+
         host="0.0.0.0",
-        port=int(os.getenv("PORT", 8080)),
+
+        port=int(
+            os.getenv(
+                "PORT",
+                8080
+            )
+        ),
+
         debug=False
-    )
+)
