@@ -6,7 +6,7 @@ import math
 import requests
 import numpy as np
 import pandas as pd
-
+from ta.volatility import AverageTrueRange
 from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO
 
@@ -99,7 +99,11 @@ web_data = {
     "pnl_idr": 0,
     "balance": 0,
     "trade_count": 0,
-    "winrate": 0
+    "winrate": 0,
+    "candle_strength": 0,
+"atr_percent": 0,
+"long_score": 0,
+"short_score": 0,
 }
 
 # =========================
@@ -162,27 +166,32 @@ def get_klines(symbol):
 # =========================
 # SIGNAL
 # =========================
-def signal(symbol):
+
+    def signal(symbol):
 
     df = get_klines(symbol)
 
     close = df["close"]
     high = df["high"]
     low = df["low"]
+    openp = df["open"]
     volume = df["volume"]
 
+    # =========================
+    # INDICATORS
+    # =========================
     ema9 = EMAIndicator(close, 9).ema_indicator()
     ema21 = EMAIndicator(close, 21).ema_indicator()
     ema200 = EMAIndicator(close, 200).ema_indicator()
 
     rsi = RSIIndicator(close, 14).rsi()
 
-    adx = ADXIndicator(
+    atr = AverageTrueRange(
         high,
         low,
         close,
         14
-    ).adx()
+    ).average_true_range()
 
     avg_volume = volume.rolling(20).mean()
 
@@ -191,43 +200,119 @@ def signal(symbol):
         avg_volume.iloc[-1]
     )
 
-    price = close.iloc[-1]
-
-    long_signal = (
-        ema9.iloc[-1] > ema21.iloc[-1]
-        and ema21.iloc[-1] > ema200.iloc[-1]
-        and rsi.iloc[-1] > 55
-        and adx.iloc[-1] > 15
-        and volume_ratio > 1.1
+    # =========================
+    # CANDLE STRENGTH
+    # =========================
+    candle_body = abs(
+        close.iloc[-1] -
+        openp.iloc[-1]
     )
 
-    short_signal = (
-        ema9.iloc[-1] < ema21.iloc[-1]
-        and ema21.iloc[-1] < ema200.iloc[-1]
-        and rsi.iloc[-1] < 45
-        and adx.iloc[-1] > 15
-        and volume_ratio > 1.1
+    candle_range = (
+        high.iloc[-1] -
+        low.iloc[-1]
     )
 
+    candle_strength = 0
+
+    if candle_range > 0:
+
+        candle_strength = (
+            candle_body /
+            candle_range
+        )
+
+    # =========================
+    # VOLATILITY FILTER
+    # =========================
+    atr_percent = (
+        atr.iloc[-1] /
+        close.iloc[-1]
+    ) * 100
+
+    # =========================
+    # LONG SCORE
+    # =========================
+    long_score = 0
+
+    if ema9.iloc[-1] > ema21.iloc[-1]:
+        long_score += 25
+
+    if ema21.iloc[-1] > ema200.iloc[-1]:
+        long_score += 20
+
+    if rsi.iloc[-1] > 55:
+        long_score += 20
+
+    if volume_ratio > 1.1:
+        long_score += 20
+
+    if candle_strength > 0.5:
+        long_score += 15
+
+    # =========================
+    # SHORT SCORE
+    # =========================
+    short_score = 0
+
+    if ema9.iloc[-1] < ema21.iloc[-1]:
+        short_score += 25
+
+    if ema21.iloc[-1] < ema200.iloc[-1]:
+        short_score += 20
+
+    if rsi.iloc[-1] < 45:
+        short_score += 20
+
+    if volume_ratio > 1.1:
+        short_score += 20
+
+    if candle_strength > 0.5:
+        short_score += 15
+
+    # =========================
+    # SIGNAL
+    # =========================
     sig = "NONE"
 
-    if long_signal:
+    if (
+        long_score >= 70
+        and atr_percent > 0.15
+    ):
+
         sig = "LONG"
 
-    elif short_signal:
+    elif (
+        short_score >= 70
+        and atr_percent > 0.15
+    ):
+
         sig = "SHORT"
 
     return {
+
         "signal": sig,
-        "price": price,
+
+        "price": close.iloc[-1],
+
         "ema9": ema9.iloc[-1],
         "ema21": ema21.iloc[-1],
         "ema200": ema200.iloc[-1],
-        "rsi": rsi.iloc[-1],
-        "adx": adx.iloc[-1],
-        "volume_ratio": volume_ratio
-    }
 
+        "rsi": rsi.iloc[-1],
+
+        "volume_ratio": volume_ratio,
+
+        "candle_strength": candle_strength,
+
+        "atr_percent": atr_percent,
+
+        "long_score": long_score,
+        "short_score": short_score
+    }
+    
+        
+        
 # =========================
 # POSITION
 # =========================
@@ -459,7 +544,11 @@ def update_dashboard(data):
         "pnl_idr": pnl * USD_IDR,
         "balance": usdt_balance,
         "trade_count": state["trade_count"],
-        "winrate": round(winrate, 2)
+        "winrate": round(winrate, 2),
+        "candle_strength": data["candle_strength"],
+"atr_percent": data["atr_percent"],
+"long_score": data["long_score"],
+"short_score": data["short_score"],
     })
 
     socketio.emit(
@@ -489,6 +578,25 @@ def terminal_dashboard(data):
     table.add_row("Volume Ratio", f'{data["volume_ratio"]:.2f}')
     table.add_row("Position", str(state["side"]))
     table.add_row("PNL", f'{web_data["pnl"]:.4f}')
+    table.add_row(
+    "Candle Strength",
+    f'{data["candle_strength"]:.2f}'
+)
+
+table.add_row(
+    "ATR %",
+    f'{data["atr_percent"]:.2f}'
+)
+
+table.add_row(
+    "LONG Score",
+    str(data["long_score"])
+)
+
+table.add_row(
+    "SHORT Score",
+    str(data["short_score"])
+)
 
     console.print(table)
 
