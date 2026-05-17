@@ -1,3 +1,5 @@
+import eventlet
+eventlet.monkey_patch()
 import os
 import time
 import math
@@ -56,8 +58,11 @@ console = Console()
 # FLASK
 # =========================
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
-
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode="eventlet"
+)
 # =========================
 # STATE
 # =========================
@@ -552,7 +557,7 @@ def run_bot():
 # =========================
 if __name__ == "__main__":
 
-    Thread(target=run_bot).start()
+    socketio.start_background_task(run_bot)
 
     socketio.run(
         app,
