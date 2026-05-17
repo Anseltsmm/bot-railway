@@ -159,6 +159,8 @@ state = {
 
     "sl_price": 0,
 
+    "trail": 0,
+
     "last_trade": 0,
 
     "last_position_state": False
@@ -203,6 +205,8 @@ web_data = {
 
     "sl_price": 0,
 
+    "trail": 0,
+
     "pnl": 0,
 
     "pnl_idr": 0,
@@ -211,10 +215,7 @@ web_data = {
 
     "trade_count": 0,
 
-    "winrate": 0,
-
-    "trail": 0
-    
+    "winrate": 0
 }
 
 # =========================
@@ -419,6 +420,31 @@ def signal(symbol):
 
             sig = "SHORT"
 
+        long_score = 0
+        short_score = 0
+
+        if bullish_trend:
+            long_score += 25
+
+        if bearish_trend:
+            short_score += 25
+
+        if rsi.iloc[-1] > 50:
+            long_score += 25
+
+        if rsi.iloc[-1] < 50:
+            short_score += 25
+
+        if good_volume:
+            long_score += 25
+            short_score += 25
+
+        if bullish_reject:
+            long_score += 25
+
+        if bearish_reject:
+            short_score += 25
+
         return {
 
             "signal": sig,
@@ -441,7 +467,11 @@ def signal(symbol):
 
             "trend": trend,
 
-            "structure": structure
+            "structure": structure,
+
+            "long_score": long_score,
+
+            "short_score": short_score
         }
 
     except Exception as e:
@@ -700,6 +730,18 @@ def open_position(symbol, side, qty):
             workingType="MARK_PRICE"
         )
 
+        console.print(
+            f"[green]TP:[/green] {tp_price:.6f}"
+        )
+
+        console.print(
+            f"[red]SL:[/red] {sl_price:.6f}"
+        )
+
+        console.print(
+            f"[yellow]TRAIL:[/yellow] {TRAIL_ROI}%"
+        )
+
         return order
 
     except Exception as e:
@@ -742,6 +784,7 @@ def monitor_position():
         state["qty"] = 0
         state["tp_price"] = 0
         state["sl_price"] = 0
+        state["trail"] = 0
 
     state["last_position_state"] = currently_open
 
@@ -805,6 +848,10 @@ def update_dashboard(data):
 
         "structure": data["structure"],
 
+        "long_score": data["long_score"],
+
+        "short_score": data["short_score"],
+
         "position": (
             state["side"]
             or "NONE"
@@ -816,6 +863,8 @@ def update_dashboard(data):
 
         "sl_price": state["sl_price"],
 
+        "trail": state["trail"],
+
         "pnl": pnl,
 
         "pnl_idr": pnl * USD_IDR,
@@ -824,9 +873,7 @@ def update_dashboard(data):
 
         "trade_count": state["trade_count"],
 
-        "winrate": round(winrate, 2),
-
-        "trail": state["trail"],
+        "winrate": round(winrate, 2)
     })
 
     socketio.emit(
@@ -885,23 +932,8 @@ def terminal_dashboard(data):
     )
 
     table.add_row(
-        "Distance EMA",
-        f'{data["distance_ema"]:.4f}'
-    )
-
-    table.add_row(
         "Position",
         str(state["side"])
-    )
-
-    table.add_row(
-        "Win",
-        str(state["win"])
-    )
-
-    table.add_row(
-        "Loss",
-        str(state["loss"])
     )
 
     table.add_row(
@@ -933,6 +965,12 @@ def run_bot():
                 continue
 
             data = signal(SYMBOL)
+
+            if "price" not in data:
+
+                socketio.sleep(5)
+
+                continue
 
             update_dashboard(data)
 
