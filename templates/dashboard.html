@@ -179,7 +179,10 @@ LIVE
 
 <script>
 
-const socket = io();
+const socket = io({
+    transports: ['websocket'],
+    reconnection: true
+});
 
 const labels = [];
 const pnlData = [];
@@ -238,7 +241,7 @@ socket.on('update', function(data){
         pnlData.shift();
     }
 
-    chart.update();
+    chart.update('none');
 
 });
 
