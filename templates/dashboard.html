@@ -146,9 +146,16 @@ LIVE
 <div class="value" id="rsi">0</div>
 </div>
 
+<!-- LONG SCORE -->
 <div class="card">
-<div class="label">ADX</div>
-<div class="value" id="adx">0</div>
+<div class="label">LONG SCORE</div>
+<div class="value green" id="long_score">0</div>
+</div>
+
+<!-- SHORT SCORE -->
+<div class="card">
+<div class="label">SHORT SCORE</div>
+<div class="value red" id="short_score">0</div>
 </div>
 
 <div class="card">
@@ -221,23 +228,90 @@ new TradingView.widget({
 socket.on('update', function(data){
 
     document.getElementById('symbol').innerText = data.symbol;
-    document.getElementById('signal').innerText = data.signal;
-    document.getElementById('price').innerText = Number(data.price).toFixed(4);
-    document.getElementById('balance').innerText = '$' + Number(data.balance).toFixed(2);
-    document.getElementById('pnl').innerText = Number(data.pnl).toFixed(4);
-    document.getElementById('pnl_idr').innerText = 'Rp ' + Number(data.pnl_idr).toLocaleString();
-    document.getElementById('position').innerText = data.position;
-    document.getElementById('entry').innerText = Number(data.entry).toFixed(4);
-    document.getElementById('rsi').innerText = Number(data.rsi).toFixed(2);
-    document.getElementById('adx').innerText = Number(data.adx).toFixed(2);
-    document.getElementById('volume_ratio').innerText = Number(data.volume_ratio).toFixed(2);
-    document.getElementById('winrate').innerText = Number(data.winrate).toFixed(2) + '%';
 
-    labels.push(new Date().toLocaleTimeString());
+    document.getElementById('signal').innerText = data.signal;
+
+    document.getElementById('price').innerText =
+        Number(data.price).toFixed(4);
+
+    document.getElementById('balance').innerText =
+        '$' + Number(data.balance).toFixed(2);
+
+    document.getElementById('pnl').innerText =
+        Number(data.pnl).toFixed(4);
+
+    document.getElementById('pnl_idr').innerText =
+        'Rp ' + Number(data.pnl_idr).toLocaleString();
+
+    document.getElementById('position').innerText =
+        data.position;
+
+    document.getElementById('entry').innerText =
+        Number(data.entry).toFixed(4);
+
+    document.getElementById('rsi').innerText =
+        Number(data.rsi).toFixed(2);
+
+    // LONG SCORE
+    document.getElementById('long_score').innerText =
+        data.long_score;
+
+    // SHORT SCORE
+    document.getElementById('short_score').innerText =
+        data.short_score;
+
+    document.getElementById('volume_ratio').innerText =
+        Number(data.volume_ratio).toFixed(2);
+
+    document.getElementById('winrate').innerText =
+        Number(data.winrate).toFixed(2) + '%';
+
+    // SIGNAL COLOR
+    const signalEl =
+        document.getElementById('signal');
+
+    signalEl.classList.remove(
+        'green',
+        'red',
+        'yellow'
+    );
+
+    if(data.signal === "LONG"){
+        signalEl.classList.add('green');
+    }
+    else if(data.signal === "SHORT"){
+        signalEl.classList.add('red');
+    }
+    else{
+        signalEl.classList.add('yellow');
+    }
+
+    // PNL COLOR
+    const pnlEl =
+        document.getElementById('pnl');
+
+    pnlEl.classList.remove(
+        'green',
+        'red'
+    );
+
+    if(data.pnl >= 0){
+        pnlEl.classList.add('green');
+    }else{
+        pnlEl.classList.add('red');
+    }
+
+    // CHART UPDATE
+    labels.push(
+        new Date().toLocaleTimeString()
+    );
+
     pnlData.push(data.pnl);
 
     if(labels.length > 30){
+
         labels.shift();
+
         pnlData.shift();
     }
 
