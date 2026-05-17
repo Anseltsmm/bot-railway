@@ -826,7 +826,7 @@ def update_dashboard(data):
 
         "winrate": round(winrate, 2),
 
-        "trail": state["trail"]
+        "trail": state["trail"],
     })
 
     socketio.emit(
