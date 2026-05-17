@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sniper Scalping Dashboard</title>
+
+<title>Adaptive Sniper Dashboard</title>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 
 <style>
 
@@ -28,6 +30,8 @@ display:flex;
 justify-content:space-between;
 align-items:center;
 margin-bottom:20px;
+flex-wrap:wrap;
+gap:10px;
 }
 
 .title{
@@ -54,16 +58,23 @@ padding:20px;
 border-radius:20px;
 border:1px solid #1e293b;
 box-shadow:0 0 20px rgba(0,0,0,0.4);
+transition:0.3s;
+}
+
+.card:hover{
+transform:translateY(-3px);
 }
 
 .label{
 color:#94a3b8;
 margin-bottom:10px;
+font-size:14px;
 }
 
 .value{
 font-size:28px;
 font-weight:bold;
+word-break:break-word;
 }
 
 .green{
@@ -78,25 +89,62 @@ color:#ef4444;
 color:#facc15;
 }
 
+.blue{
+color:#38bdf8;
+}
+
+.orange{
+color:#fb923c;
+}
+
 .chart-box{
 margin-top:30px;
 background:#0f172a;
 padding:20px;
 border-radius:20px;
+border:1px solid #1e293b;
+}
+
+.chart-title{
+margin-bottom:20px;
+font-size:22px;
+font-weight:bold;
+}
+
+.footer{
+margin-top:20px;
+text-align:center;
+color:#64748b;
+font-size:13px;
+}
+
+.signal-long{
+color:#22c55e;
+}
+
+.signal-short{
+color:#ef4444;
+}
+
+.signal-none{
+color:#facc15;
 }
 
 </style>
 </head>
+
 <body>
 
 <div class="header">
+
 <div class="title">
-🚀 Sniper Scalping Dashboard
+🚀 Adaptive Sniper Scalping Bot
 </div>
 
-<div class="status">
+<div class="status" id="status">
 LIVE
 </div>
+
 </div>
 
 <div class="grid">
@@ -108,7 +156,7 @@ LIVE
 
 <div class="card">
 <div class="label">SIGNAL</div>
-<div class="value" id="signal">-</div>
+<div class="value signal-none" id="signal">NONE</div>
 </div>
 
 <div class="card">
@@ -118,7 +166,32 @@ LIVE
 
 <div class="card">
 <div class="label">BALANCE</div>
-<div class="value green" id="balance">0</div>
+<div class="value green" id="balance">$0</div>
+</div>
+
+<div class="card">
+<div class="label">POSITION</div>
+<div class="value blue" id="position">NONE</div>
+</div>
+
+<div class="card">
+<div class="label">ENTRY PRICE</div>
+<div class="value" id="entry">0</div>
+</div>
+
+<div class="card">
+<div class="label">STOP LOSS</div>
+<div class="value red" id="sl">0</div>
+</div>
+
+<div class="card">
+<div class="label">TAKE PROFIT</div>
+<div class="value green" id="tp">0</div>
+</div>
+
+<div class="card">
+<div class="label">TRAILING STOP</div>
+<div class="value orange" id="trail">0</div>
 </div>
 
 <div class="card">
@@ -132,27 +205,25 @@ LIVE
 </div>
 
 <div class="card">
-<div class="label">POSITION</div>
-<div class="value" id="position">NONE</div>
-</div>
-
-<div class="card">
-<div class="label">ENTRY</div>
-<div class="value" id="entry">0</div>
-</div>
-
-<div class="card">
 <div class="label">RSI</div>
 <div class="value" id="rsi">0</div>
 </div>
 
-<!-- LONG SCORE -->
+<div class="card">
+<div class="label">MARKET TREND</div>
+<div class="value" id="market_trend">-</div>
+</div>
+
+<div class="card">
+<div class="label">STRUCTURE</div>
+<div class="value" id="market_structure">-</div>
+</div>
+
 <div class="card">
 <div class="label">LONG SCORE</div>
 <div class="value green" id="long_score">0</div>
 </div>
 
-<!-- SHORT SCORE -->
 <div class="card">
 <div class="label">SHORT SCORE</div>
 <div class="value red" id="short_score">0</div>
@@ -164,25 +235,45 @@ LIVE
 </div>
 
 <div class="card">
+<div class="label">ATR %</div>
+<div class="value" id="atr_percent">0</div>
+</div>
+
+<div class="card">
 <div class="label">WINRATE</div>
-<div class="value" id="winrate">0%</div>
+<div class="value yellow" id="winrate">0%</div>
+</div>
+
+<div class="card">
+<div class="label">TOTAL TRADE</div>
+<div class="value" id="trade_count">0</div>
 </div>
 
 </div>
 
 <div class="chart-box">
-<h2 style="margin-bottom:20px;">📈 Realtime PNL Chart</h2>
+
+<div class="chart-title">
+📈 Realtime PNL Chart
+</div>
+
 <canvas id="pnlChart"></canvas>
+
 </div>
 
 <div class="chart-box">
-<h2 style="margin-bottom:20px;">📊 Live TradingView Chart</h2>
-<div class="tradingview-widget-container">
-  <div id="tradingview_chart"></div>
-</div>
+
+<div class="chart-title">
+📊 Live TradingView Chart
 </div>
 
-<script src="https://s3.tradingview.com/tv.js"></script>
+<div id="tradingview_chart"></div>
+
+</div>
+
+<div class="footer">
+Adaptive Smart Entry • Market Structure • Binance TP/SL • Binance Trailing Stop
+</div>
 
 <script>
 
@@ -197,122 +288,184 @@ const pnlData = [];
 const ctx = document.getElementById('pnlChart');
 
 const chart = new Chart(ctx, {
+
     type: 'line',
+
     data: {
+
         labels: labels,
+
         datasets: [{
+
             label: 'Realtime PNL',
+
             data: pnlData,
+
             borderWidth: 3,
+
             tension: 0.4
+
         }]
+    },
+
+    options: {
+
+        responsive:true,
+
+        plugins:{
+            legend:{
+                labels:{
+                    color:'white'
+                }
+            }
+        },
+
+        scales:{
+
+            x:{
+                ticks:{
+                    color:'white'
+                }
+            },
+
+            y:{
+                ticks:{
+                    color:'white'
+                }
+            }
+        }
     }
 });
 
 new TradingView.widget({
-  "width": "100%",
-  "height": 500,
-  "symbol": "BINANCE:DOGEUSDT",
-  "interval": "3",
-  "timezone": "Asia/Jakarta",
-  "theme": "dark",
-  "style": "1",
-  "locale": "en",
-  "toolbar_bg": "#0f172a",
-  "enable_publishing": false,
-  "hide_top_toolbar": false,
-  "save_image": false,
-  "container_id": "tradingview_chart"
+
+    "width": "100%",
+    "height": 550,
+    "symbol": "BINANCE:DOGEUSDT",
+    "interval": "1",
+    "timezone": "Asia/Jakarta",
+    "theme": "dark",
+    "style": "1",
+    "locale": "en",
+    "toolbar_bg": "#0f172a",
+    "enable_publishing": false,
+    "hide_top_toolbar": false,
+    "save_image": false,
+    "container_id": "tradingview_chart"
+
 });
 
 socket.on('update', function(data){
 
-    document.getElementById('symbol').innerText = data.symbol;
-
-    document.getElementById('signal').innerText = data.signal;
+    document.getElementById('symbol').innerText =
+        data.symbol || '-';
 
     document.getElementById('price').innerText =
-        Number(data.price).toFixed(4);
+        Number(data.price || 0).toFixed(4);
 
     document.getElementById('balance').innerText =
-        '$' + Number(data.balance).toFixed(2);
-
-    document.getElementById('pnl').innerText =
-        Number(data.pnl).toFixed(4);
-
-    document.getElementById('pnl_idr').innerText =
-        'Rp ' + Number(data.pnl_idr).toLocaleString();
+        '$' + Number(data.balance || 0).toFixed(2);
 
     document.getElementById('position').innerText =
-        data.position;
+        data.position || 'NONE';
 
     document.getElementById('entry').innerText =
-        Number(data.entry).toFixed(4);
+        Number(data.entry || 0).toFixed(4);
+
+    document.getElementById('sl').innerText =
+        Number(data.sl || 0).toFixed(4);
+
+    document.getElementById('tp').innerText =
+        Number(data.tp || 0).toFixed(4);
+
+    document.getElementById('trail').innerText =
+        Number(data.trail || 0).toFixed(4);
+
+    document.getElementById('pnl').innerText =
+        Number(data.pnl || 0).toFixed(4);
+
+    document.getElementById('pnl_idr').innerText =
+        'Rp ' + Number(data.pnl_idr || 0).toLocaleString();
 
     document.getElementById('rsi').innerText =
-        Number(data.rsi).toFixed(2);
+        Number(data.rsi || 0).toFixed(2);
 
-    // LONG SCORE
+    document.getElementById('market_trend').innerText =
+        data.market_trend || '-';
+
+    document.getElementById('market_structure').innerText =
+        data.market_structure || '-';
+
     document.getElementById('long_score').innerText =
-        data.long_score;
+        Number(data.long_score || 0);
 
-    // SHORT SCORE
     document.getElementById('short_score').innerText =
-        data.short_score;
+        Number(data.short_score || 0);
 
     document.getElementById('volume_ratio').innerText =
-        Number(data.volume_ratio).toFixed(2);
+        Number(data.volume_ratio || 0).toFixed(2);
+
+    document.getElementById('atr_percent').innerText =
+        Number(data.atr_percent || 0).toFixed(4);
 
     document.getElementById('winrate').innerText =
-        Number(data.winrate).toFixed(2) + '%';
+        Number(data.winrate || 0).toFixed(2) + '%';
 
+    document.getElementById('trade_count').innerText =
+        Number(data.trade_count || 0);
+
+    // =========================
     // SIGNAL COLOR
-    const signalEl =
-        document.getElementById('signal');
+    // =========================
+    const signalEl = document.getElementById('signal');
+
+    signalEl.innerText = data.signal || 'NONE';
 
     signalEl.classList.remove(
-        'green',
-        'red',
-        'yellow'
+        'signal-long',
+        'signal-short',
+        'signal-none'
     );
 
-    if(data.signal === "LONG"){
-        signalEl.classList.add('green');
+    if(data.signal === 'LONG'){
+        signalEl.classList.add('signal-long');
     }
-    else if(data.signal === "SHORT"){
-        signalEl.classList.add('red');
+    else if(data.signal === 'SHORT'){
+        signalEl.classList.add('signal-short');
     }
     else{
-        signalEl.classList.add('yellow');
+        signalEl.classList.add('signal-none');
     }
 
+    // =========================
     // PNL COLOR
-    const pnlEl =
-        document.getElementById('pnl');
+    // =========================
+    const pnlEl = document.getElementById('pnl');
 
-    pnlEl.classList.remove(
-        'green',
-        'red'
-    );
-
-    if(data.pnl >= 0){
+    if(Number(data.pnl) >= 0){
+        pnlEl.classList.remove('red');
         pnlEl.classList.add('green');
     }else{
+        pnlEl.classList.remove('green');
         pnlEl.classList.add('red');
     }
 
-    // CHART UPDATE
+    // =========================
+    // CHART
+    // =========================
     labels.push(
         new Date().toLocaleTimeString()
     );
 
-    pnlData.push(data.pnl);
+    pnlData.push(
+        Number(data.pnl || 0)
+    );
 
-    if(labels.length > 30){
+    if(labels.length > 50){
 
         labels.shift();
-
         pnlData.shift();
+
     }
 
     chart.update('none');
