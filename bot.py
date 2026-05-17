@@ -629,7 +629,7 @@ def open_position(symbol, side, qty):
             type="TRAILING_STOP_MARKET",
 
             callbackRate=max(
-                0.1,
+                0.5,
                 TRAIL_ROI
             ),
 
