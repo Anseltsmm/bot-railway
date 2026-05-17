@@ -372,13 +372,513 @@ def signal(symbol):
             "signal": "NONE"
         }
 
-# lanjutkan function lain seperti sebelumnya:
-# - get_position
-# - safe_qty
-# - open_position
-# - close_position
-# - update_trailing
-# - update_dashboard
-# - terminal_dashboard
-# - run_bot
-# - socketio.run
+# =========================
+# POSITION
+# =========================
+def get_position(symbol):
+
+    try:
+
+        positions = client.futures_position_information(
+            symbol=symbol
+        )
+
+        for p in positions:
+
+            amt = float(p["positionAmt"])
+
+            if abs(amt) > 0.000001:
+                return p
+
+    except Exception as e:
+
+        console.print(
+            f"[red]POSITION ERROR:[/red] {e}"
+        )
+
+    return None
+
+# =========================
+# PNL
+# =========================
+def unrealized_pnl(symbol):
+
+    pos = get_position(symbol)
+
+    if not pos:
+        return 0
+
+    return float(
+        pos["unRealizedProfit"]
+    )
+
+# =========================
+# LOT FILTER
+# =========================
+def get_lot_filters(symbol):
+
+    info = client.futures_exchange_info()
+
+    for s in info["symbols"]:
+
+        if s["symbol"] == symbol:
+
+            for f in s["filters"]:
+
+                if f["filterType"] == "LOT_SIZE":
+
+                    return (
+                        float(f["stepSize"]),
+                        float(f["minQty"])
+                    )
+
+    return 0.001, 0.001
+
+# =========================
+# SAFE QTY
+# =========================
+def safe_qty(qty, step, min_qty):
+
+    qty = math.floor(qty / step) * step
+
+    if qty < min_qty:
+        qty = min_qty
+
+    return float(f"{qty:.8f}")
+
+# =========================
+# SETUP
+# =========================
+def setup_symbol(symbol):
+
+    try:
+
+        client.futures_change_leverage(
+            symbol=symbol,
+            leverage=LEVERAGE
+        )
+
+        console.print(
+            f"[green]LEVERAGE SET:[/green] {LEVERAGE}x"
+        )
+
+    except Exception as e:
+
+        console.print(
+            f"[red]LEVERAGE ERROR:[/red] {e}"
+        )
+
+    try:
+
+        client.futures_change_margin_type(
+            symbol=symbol,
+            marginType=MARGIN_TYPE
+        )
+
+        console.print(
+            f"[green]MARGIN:[/green] {MARGIN_TYPE}"
+        )
+
+    except Exception as e:
+
+        console.print(
+            f"[yellow]MARGIN WARNING:[/yellow] {e}"
+        )
+
+# =========================
+# OPEN POSITION
+# =========================
+def open_position(symbol, side, qty):
+
+    try:
+
+        order = client.futures_create_order(
+            symbol=symbol,
+            side=SIDE_BUY if side == "LONG" else SIDE_SELL,
+            type=ORDER_TYPE_MARKET,
+            quantity=qty
+        )
+
+        return order
+
+    except Exception as e:
+
+        console.print(
+            f"[red]ENTRY ERROR:[/red] {e}"
+        )
+
+    return None
+
+# =========================
+# CLOSE POSITION
+# =========================
+def close_position(symbol, side, qty):
+
+    try:
+
+        client.futures_create_order(
+            symbol=symbol,
+            side=SIDE_SELL if side == "LONG" else SIDE_BUY,
+            type=ORDER_TYPE_MARKET,
+            quantity=qty,
+            reduceOnly=True
+        )
+
+        console.print(
+            "[green]POSITION CLOSED[/green]"
+        )
+
+        # RESET STATE
+        state["side"] = None
+        state["entry"] = 0
+        state["qty"] = 0
+        state["highest"] = 0
+        state["lowest"] = 999999
+        state["trail"] = 0
+
+    except Exception as e:
+
+        console.print(
+            f"[red]CLOSE ERROR:[/red] {e}"
+        )
+
+# =========================
+# TRAILING STOP
+# =========================
+def update_trailing(symbol):
+
+    pos = get_position(symbol)
+
+    if not pos:
+        return
+
+    amt = float(pos["positionAmt"])
+
+    side = (
+        "LONG"
+        if amt > 0
+        else "SHORT"
+    )
+
+    price = get_price(symbol)
+
+    # =========================
+    # LONG
+    # =========================
+    if side == "LONG":
+
+        if price > state["highest"]:
+            state["highest"] = price
+
+        trail = (
+            state["highest"] *
+            (1 - TRAIL_ROI)
+        )
+
+        state["trail"] = trail
+
+        if price <= trail:
+
+            console.print(
+                "[red]TRAIL HIT LONG[/red]"
+            )
+
+            close_position(
+                symbol,
+                side,
+                abs(amt)
+            )
+
+    # =========================
+    # SHORT
+    # =========================
+    else:
+
+        if price < state["lowest"]:
+            state["lowest"] = price
+
+        trail = (
+            state["lowest"] *
+            (1 + TRAIL_ROI)
+        )
+
+        state["trail"] = trail
+
+        if price >= trail:
+
+            console.print(
+                "[red]TRAIL HIT SHORT[/red]"
+            )
+
+            close_position(
+                symbol,
+                side,
+                abs(amt)
+            )
+
+# =========================
+# UPDATE DASHBOARD
+# =========================
+def update_dashboard(data):
+
+    pnl = unrealized_pnl(SYMBOL)
+
+    try:
+
+        balance_info = client.futures_account_balance()
+
+        usdt_balance = 0
+
+        for b in balance_info:
+
+            if b["asset"] == "USDT":
+
+                usdt_balance = float(
+                    b["balance"]
+                )
+
+                break
+
+    except:
+        usdt_balance = 0
+
+    winrate = 0
+
+    if state["trade_count"] > 0:
+
+        winrate = (
+            state["win"] /
+            state["trade_count"]
+        ) * 100
+
+    web_data.update({
+
+        "signal": data["signal"],
+
+        "price": data["price"],
+
+        "ema9": data["ema9"],
+        "ema21": data["ema21"],
+        "ema200": data["ema200"],
+
+        "rsi": data["rsi"],
+
+        "volume_ratio": data["volume_ratio"],
+
+        "candle_strength": data["candle_strength"],
+
+        "atr_percent": data["atr_percent"],
+
+        "long_score": data["long_score"],
+        "short_score": data["short_score"],
+
+        "position": state["side"] or "NONE",
+
+        "entry": state["entry"],
+
+        "trail": state["trail"],
+
+        "pnl": pnl,
+
+        "pnl_idr": pnl * USD_IDR,
+
+        "balance": usdt_balance,
+
+        "trade_count": state["trade_count"],
+
+        "winrate": round(winrate, 2)
+    })
+
+    socketio.emit(
+        "update",
+        web_data
+    )
+
+# =========================
+# DASHBOARD TERMINAL
+# =========================
+def terminal_dashboard(data):
+
+    console.clear()
+
+    table = Table(
+        title="ADAPTIVE SNIPER BOT",
+        box=box.DOUBLE_EDGE
+    )
+
+    table.add_column("Metric")
+    table.add_column("Value")
+
+    table.add_row(
+        "Signal",
+        str(data["signal"])
+    )
+
+    table.add_row(
+        "Price",
+        f'{data["price"]:.4f}'
+    )
+
+    table.add_row(
+        "RSI",
+        f'{data["rsi"]:.2f}'
+    )
+
+    table.add_row(
+        "ATR %",
+        f'{data["atr_percent"]:.4f}'
+    )
+
+    table.add_row(
+        "LONG Score",
+        str(data["long_score"])
+    )
+
+    table.add_row(
+        "SHORT Score",
+        str(data["short_score"])
+    )
+
+    table.add_row(
+        "Position",
+        str(state["side"])
+    )
+
+    table.add_row(
+        "PNL",
+        f'{web_data["pnl"]:.4f}'
+    )
+
+    console.print(table)
+
+# =========================
+# MAIN LOOP
+# =========================
+def run_bot():
+
+    setup_symbol(SYMBOL)
+
+    while True:
+
+        try:
+
+            if not API_KEY or not API_SECRET:
+
+                console.print(
+                    "[red]API KEY MISSING[/red]"
+                )
+
+                socketio.sleep(10)
+
+                continue
+
+            data = signal(SYMBOL)
+
+            update_dashboard(data)
+
+            terminal_dashboard(data)
+
+            pos = get_position(SYMBOL)
+
+            # =========================
+            # POSITION ACTIVE
+            # =========================
+            if pos:
+
+                update_trailing(SYMBOL)
+
+                socketio.sleep(2)
+
+                continue
+
+            # =========================
+            # ENTRY
+            # =========================
+            if data["signal"] != "NONE":
+
+                step, min_qty = get_lot_filters(
+                    SYMBOL
+                )
+
+                raw_qty = (
+                    ORDER_USDT *
+                    LEVERAGE
+                ) / data["price"]
+
+                qty = safe_qty(
+                    raw_qty,
+                    step,
+                    min_qty
+                )
+
+                notional = qty * data["price"]
+
+                console.print(
+                    f"""
+[green]TRY ENTRY[/green]
+SIDE      : {data["signal"]}
+QTY       : {qty}
+PRICE     : {data["price"]}
+NOTIONAL  : {notional}
+"""
+                )
+
+                if notional < 5:
+
+                    console.print(
+                        "[red]NOTIONAL TOO SMALL[/red]"
+                    )
+
+                    socketio.sleep(5)
+
+                    continue
+
+                order = open_position(
+                    SYMBOL,
+                    data["signal"],
+                    qty
+                )
+
+                if order:
+
+                    state["side"] = data["signal"]
+
+                    state["entry"] = data["price"]
+
+                    state["qty"] = qty
+
+                    state["highest"] = data["price"]
+
+                    state["lowest"] = data["price"]
+
+                    state["trade_count"] += 1
+
+                    console.print(
+                        f"[bold green]ENTRY {data['signal']} SUCCESS[/bold green]"
+                    )
+
+            socketio.sleep(5)
+
+        except Exception as e:
+
+            console.print(
+                f"[red]MAIN LOOP ERROR:[/red] {e}"
+            )
+
+            socketio.sleep(5)
+
+# =========================
+# START
+# =========================
+if __name__ == "__main__":
+
+    socketio.start_background_task(
+        run_bot
+    )
+
+    socketio.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8080)),
+        debug=False
+    )
