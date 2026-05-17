@@ -464,8 +464,7 @@ def update_dashboard(data):
 
     socketio.emit(
     "update",
-    web_data,
-    broadcast=True
+    web_data
 )
 
 # =========================
