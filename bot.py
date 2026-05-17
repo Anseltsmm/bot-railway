@@ -196,17 +196,17 @@ def signal(symbol):
     long_signal = (
         ema9.iloc[-1] > ema21.iloc[-1]
         and ema21.iloc[-1] > ema200.iloc[-1]
-        and rsi.iloc[-1] > 60
-        and adx.iloc[-1] > 20
-        and volume_ratio > 1.3
+        and rsi.iloc[-1] > 55
+        and adx.iloc[-1] > 15
+        and volume_ratio > 1.1
     )
 
     short_signal = (
         ema9.iloc[-1] < ema21.iloc[-1]
         and ema21.iloc[-1] < ema200.iloc[-1]
-        and rsi.iloc[-1] < 40
-        and adx.iloc[-1] > 20
-        and volume_ratio > 1.3
+        and rsi.iloc[-1] < 45
+        and adx.iloc[-1] > 15
+        and volume_ratio > 1.1
     )
 
     sig = "NONE"
