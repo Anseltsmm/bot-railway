@@ -462,7 +462,11 @@ def update_dashboard(data):
         "winrate": round(winrate, 2)
     })
 
-    socketio.emit("update", web_data)
+    socketio.emit(
+    "update",
+    web_data,
+    broadcast=True
+)
 
 # =========================
 # TERMINAL UI
@@ -512,7 +516,7 @@ def run_bot():
 
                 update_trailing(SYMBOL)
 
-                time.sleep(2)
+                socketio.sleep(2)
                 continue
 
             if data["signal"] != "NONE":
@@ -544,13 +548,13 @@ def run_bot():
                     state["lowest"] = data["price"]
                     state["trade_count"] += 1
 
-            time.sleep(5)
+            socketio.sleep(5)
 
         except Exception as e:
 
             console.print(f"[red]{e}[/red]")
 
-            time.sleep(5)
+            socketio.sleep(5)
 
 # =========================
 # START
@@ -562,5 +566,6 @@ if __name__ == "__main__":
     socketio.run(
         app,
         host="0.0.0.0",
-        port=int(os.getenv("PORT", 8080))
+        port=int(os.getenv("PORT", 8080)),
+        debug=False
     )
