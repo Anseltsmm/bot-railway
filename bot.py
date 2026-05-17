@@ -5,8 +5,6 @@ import requests
 import numpy as np
 import pandas as pd
 
-import eventlet
-eventlet.monkey_patch()
 from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO
 
@@ -58,11 +56,8 @@ console = Console()
 # FLASK
 # =========================
 app = Flask(__name__)
-socketio = SocketIO(
-    app,
-    cors_allowed_origins="*",
-    async_mode="eventlet"
-)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 # =========================
 # STATE
 # =========================
