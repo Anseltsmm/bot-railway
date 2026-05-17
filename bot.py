@@ -36,8 +36,8 @@ API_SECRET = os.getenv("BINANCE_API_SECRET")
 SYMBOL = os.getenv("SYMBOL", "DOGEUSDT")
 INTERVAL = os.getenv("INTERVAL", "1m")
 
-LEVERAGE = int(os.getenv("LEVERAGE", 5))
-ORDER_USDT = float(os.getenv("ORDER_USDT", 5))
+LEVERAGE = int(os.getenv("LEVERAGE", 10))
+ORDER_USDT = float(os.getenv("ORDER_USDT", 1))
 
 TP_ROI = float(os.getenv("TP_ROI", 0.02))
 SL_ROI = float(os.getenv("SL_ROI", 0.01))
