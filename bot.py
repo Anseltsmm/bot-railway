@@ -34,7 +34,7 @@ API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")
 
 SYMBOL = os.getenv("SYMBOL", "DOGEUSDT")
-INTERVAL = os.getenv("INTERVAL", "1m")
+INTERVAL = os.getenv("INTERVAL", "5m")
 
 LEVERAGE = int(os.getenv("LEVERAGE", 10))
 ORDER_USDT = float(os.getenv("ORDER_USDT", 1))
@@ -43,7 +43,7 @@ TP_ROI = float(os.getenv("TP_ROI", 0.02))
 SL_ROI = float(os.getenv("SL_ROI", 0.01))
 TRAIL_ROI = float(os.getenv("TRAIL_ROI", 0.8))
 
-USD_IDR = int(os.getenv("USD_IDR", 15800))
+USD_IDR = int(os.getenv("USD_IDR", 17438))
 
 MARGIN_TYPE = os.getenv(
     "MARGIN_TYPE",
@@ -159,7 +159,9 @@ state = {
 
     "sl_price": 0,
 
-    "last_trade": 0
+    "last_trade": 0,
+
+    "last_position_state": False
 }
 
 # =========================
@@ -190,6 +192,8 @@ web_data = {
     "distance_ema": 0,
 
     "trend": "NONE",
+
+    "structure": "NONE",
 
     "position": "NONE",
 
@@ -328,6 +332,27 @@ def signal(symbol):
             ema200.iloc[-1]
         )
 
+        if bullish_trend:
+            trend = "BULLISH"
+
+        elif bearish_trend:
+            trend = "BEARISH"
+
+        else:
+            trend = "SIDEWAYS"
+
+        recent_high = high.iloc[-10:].max()
+        recent_low = low.iloc[-10:].min()
+
+        if current_price >= recent_high:
+            structure = "BREAKOUT"
+
+        elif current_price <= recent_low:
+            structure = "BREAKDOWN"
+
+        else:
+            structure = "RANGE"
+
         pullback_long = (
             current_price <=
             ema9.iloc[-1] * 1.002
@@ -411,11 +436,9 @@ def signal(symbol):
 
             "distance_ema": distance_ema,
 
-            "trend": (
-                "BULLISH"
-                if bullish_trend
-                else "BEARISH"
-            )
+            "trend": trend,
+
+            "structure": structure
         }
 
     except Exception as e:
@@ -537,11 +560,27 @@ def setup_symbol(symbol):
         pass
 
 # =========================
+# CANCEL OLD ORDERS
+# =========================
+def cancel_orders(symbol):
+
+    try:
+
+        client.futures_cancel_all_open_orders(
+            symbol=symbol
+        )
+
+    except:
+        pass
+
+# =========================
 # OPEN POSITION
 # =========================
 def open_position(symbol, side, qty):
 
     try:
+
+        cancel_orders(symbol)
 
         order = client.futures_create_order(
 
@@ -558,6 +597,8 @@ def open_position(symbol, side, qty):
             quantity=qty
         )
 
+        socketio.sleep(1)
+
         entry_price = get_price(symbol)
 
         if side == "LONG":
@@ -572,6 +613,10 @@ def open_position(symbol, side, qty):
                 (1 - SL_ROI)
             )
 
+            activation_price = (
+                entry_price * 1.003
+            )
+
             stop_side = SIDE_SELL
 
         else:
@@ -584,6 +629,10 @@ def open_position(symbol, side, qty):
             sl_price = (
                 entry_price *
                 (1 + SL_ROI)
+            )
+
+            activation_price = (
+                entry_price * 0.997
             )
 
             stop_side = SIDE_BUY
@@ -602,7 +651,9 @@ def open_position(symbol, side, qty):
 
             stopPrice=round(tp_price, 6),
 
-            closePosition=True
+            closePosition=True,
+
+            workingType="MARK_PRICE"
         )
 
         # STOP LOSS
@@ -616,10 +667,12 @@ def open_position(symbol, side, qty):
 
             stopPrice=round(sl_price, 6),
 
-            closePosition=True
+            closePosition=True,
+
+            workingType="MARK_PRICE"
         )
 
-        # BINANCE TRAILING
+        # TRAILING STOP
         client.futures_create_order(
 
             symbol=symbol,
@@ -633,7 +686,14 @@ def open_position(symbol, side, qty):
                 TRAIL_ROI
             ),
 
-            quantity=qty
+            activationPrice=round(
+                activation_price,
+                6
+            ),
+
+            quantity=qty,
+
+            workingType="MARK_PRICE"
         )
 
         return order
@@ -645,6 +705,41 @@ def open_position(symbol, side, qty):
         )
 
     return None
+
+# =========================
+# MONITOR POSITION
+# =========================
+def monitor_position():
+
+    pos = get_position(SYMBOL)
+
+    currently_open = pos is not None
+
+    if (
+        state["last_position_state"]
+        and not currently_open
+    ):
+
+        pnl = web_data["pnl"]
+
+        if pnl > 0:
+            state["win"] += 1
+        else:
+            state["loss"] += 1
+
+        console.print(
+            f"[cyan]POSITION CLOSED | PNL: {pnl:.4f}[/cyan]"
+        )
+
+        cancel_orders(SYMBOL)
+
+        state["side"] = None
+        state["entry"] = 0
+        state["qty"] = 0
+        state["tp_price"] = 0
+        state["sl_price"] = 0
+
+    state["last_position_state"] = currently_open
 
 # =========================
 # UPDATE DASHBOARD
@@ -704,6 +799,8 @@ def update_dashboard(data):
 
         "trend": data["trend"],
 
+        "structure": data["structure"],
+
         "position": (
             state["side"]
             or "NONE"
@@ -757,6 +854,11 @@ def terminal_dashboard(data):
     )
 
     table.add_row(
+        "Structure",
+        str(data["structure"])
+    )
+
+    table.add_row(
         "Price",
         f'{data["price"]:.4f}'
     )
@@ -784,6 +886,16 @@ def terminal_dashboard(data):
     table.add_row(
         "Position",
         str(state["side"])
+    )
+
+    table.add_row(
+        "Win",
+        str(state["win"])
+    )
+
+    table.add_row(
+        "Loss",
+        str(state["loss"])
     )
 
     table.add_row(
@@ -818,28 +930,38 @@ def run_bot():
 
             update_dashboard(data)
 
+            monitor_position()
+
             terminal_dashboard(data)
 
             pos = get_position(SYMBOL)
 
             if pos:
 
-                socketio.sleep(2)
+                socketio.sleep(5)
 
                 continue
 
             # =========================
-            # COOLDOWN
+            # COOLDOWN 10 MENIT
             # =========================
-            cooldown = 60
+            cooldown = 600
 
             if (
                 time.time() -
                 state["last_trade"]
             ) < cooldown:
 
+                remaining = int(
+                    cooldown -
+                    (
+                        time.time() -
+                        state["last_trade"]
+                    )
+                )
+
                 console.print(
-                    "[yellow]ENTRY COOLDOWN[/yellow]"
+                    f"[yellow]ENTRY COOLDOWN {remaining}s[/yellow]"
                 )
 
                 socketio.sleep(5)
