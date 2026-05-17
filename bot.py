@@ -211,7 +211,10 @@ web_data = {
 
     "trade_count": 0,
 
-    "winrate": 0
+    "winrate": 0,
+
+    "trail": 0
+    
 }
 
 # =========================
@@ -639,6 +642,7 @@ def open_position(symbol, side, qty):
 
         state["tp_price"] = tp_price
         state["sl_price"] = sl_price
+        state["trail"] = TRAIL_ROI
 
         # TAKE PROFIT
         client.futures_create_order(
@@ -820,7 +824,9 @@ def update_dashboard(data):
 
         "trade_count": state["trade_count"],
 
-        "winrate": round(winrate, 2)
+        "winrate": round(winrate, 2),
+
+        "trail": state["trail"]
     })
 
     socketio.emit(
