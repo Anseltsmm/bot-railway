@@ -50,7 +50,7 @@ SL_ROI = float(
 )
 
 TRAIL_ROI = float(
-    os.getenv("TRAIL_ROI", 0.002)
+    os.getenv("TRAIL_ROI", 0.003)
 )
 
 USD_IDR = int(
@@ -63,7 +63,7 @@ MARGIN_TYPE = os.getenv(
 ).upper()
 
 # =========================
-# MULTI TIMEFRAME
+# MULTI TF
 # =========================
 TIMEFRAMES = [
     "1m",
@@ -80,13 +80,14 @@ TIMEFRAMES = [
 # COINS
 # =========================
 SCAN_COINS = [
+    "BTCUSDT",
+    "ETHUSDT",
     "XRPUSDT",
     "DOGEUSDT",
     "ADAUSDT",
     "LINKUSDT",
     "AVAXUSDT",
     "NEARUSDT",
-    "BEATUSDT",
     "TRXUSDT"
 ]
 
@@ -199,7 +200,7 @@ def get_klines(symbol, interval):
     return df
 
 # =========================
-# ANALYZE TIMEFRAME
+# ANALYZE TF
 # =========================
 def analyze_timeframe(symbol, timeframe):
 
@@ -253,7 +254,7 @@ def analyze_timeframe(symbol, timeframe):
         return "SIDEWAYS"
 
 # =========================
-# SIGNAL ENGINE
+# SIGNAL
 # =========================
 def signal(symbol):
 
@@ -329,17 +330,6 @@ def signal(symbol):
         elif bearish_trend:
             trend = "BEARISH"
 
-        recent_high = high.iloc[-10:].max()
-        recent_low = low.iloc[-10:].min()
-
-        structure = "RANGE"
-
-        if current_price >= recent_high:
-            structure = "BREAKOUT"
-
-        elif current_price <= recent_low:
-            structure = "BREAKDOWN"
-
         bullish_reject = (
             close.iloc[-1] >
             openp.iloc[-1]
@@ -382,16 +372,6 @@ def signal(symbol):
 
             elif result == "BEARISH":
                 mtf_bearish += 1
-
-        mtf_total = len(TIMEFRAMES)
-
-        mtf_status = "NEUTRAL"
-
-        if mtf_bullish > mtf_bearish:
-            mtf_status = "BULLISH"
-
-        elif mtf_bearish > mtf_bullish:
-            mtf_status = "BEARISH"
 
         long_score = 0
         short_score = 0
@@ -474,7 +454,6 @@ def signal(symbol):
             ),
 
             "trend": trend,
-            "structure": structure,
 
             "long_score": long_score,
             "short_score": short_score,
@@ -483,8 +462,6 @@ def signal(symbol):
 
             "mtf_bullish": mtf_bullish,
             "mtf_bearish": mtf_bearish,
-            "mtf_total": mtf_total,
-            "mtf_status": mtf_status,
 
             "mtf": mtf_map
         }
@@ -526,7 +503,7 @@ def get_position(symbol):
     return None
 
 # =========================
-# GET ANY POSITION
+# ANY POSITION
 # =========================
 def get_any_open_position():
 
@@ -550,90 +527,6 @@ def get_any_open_position():
         )
 
     return None
-
-# =========================
-# RESTORE POSITION
-# =========================
-def restore_position_state():
-
-    try:
-
-        pos = get_any_open_position()
-
-        if not pos:
-
-            console.print(
-                "[cyan]NO ACTIVE POSITION[/cyan]"
-            )
-
-            state["symbol"] = None
-            state["side"] = None
-            state["entry"] = 0
-            state["qty"] = 0
-
-            return
-
-        symbol = pos["symbol"]
-
-        amt = float(
-            pos["positionAmt"]
-        )
-
-        entry_price = float(
-            pos["entryPrice"]
-        )
-
-        state["symbol"] = symbol
-
-        state["entry"] = entry_price
-
-        state["qty"] = abs(amt)
-
-        if amt > 0:
-
-            state["side"] = "LONG"
-
-            tp_price = entry_price * (1 + TP_ROI)
-
-            sl_price = entry_price * (1 - SL_ROI)
-
-        else:
-
-            state["side"] = "SHORT"
-
-            tp_price = entry_price * (1 - TP_ROI)
-
-            sl_price = entry_price * (1 + SL_ROI)
-
-        state["tp_price"] = tp_price
-        state["sl_price"] = sl_price
-        state["trail"] = TRAIL_ROI
-
-        console.print(
-            f"[green]RESTORED POSITION:[/green] "
-            f"{state['side']} "
-            f"{symbol}"
-        )
-
-    except Exception as e:
-
-        console.print(
-            f"[red]RESTORE ERROR:[/red] {e}"
-        )
-
-# =========================
-# PNL
-# =========================
-def unrealized_pnl(symbol):
-
-    pos = get_position(symbol)
-
-    if not pos:
-        return 0
-
-    return float(
-        pos["unRealizedProfit"]
-    )
 
 # =========================
 # BALANCE
@@ -681,6 +574,32 @@ def get_lot_filters(symbol):
                     )
 
     return 0.001, 0.001
+
+# =========================
+# PRICE PRECISION
+# =========================
+def get_price_precision(symbol):
+
+    info = client.futures_exchange_info()
+
+    for s in info["symbols"]:
+
+        if s["symbol"] == symbol:
+
+            return s["pricePrecision"]
+
+    return 4
+
+# =========================
+# FORMAT PRICE
+# =========================
+def format_price(symbol, price):
+
+    precision = get_price_precision(symbol)
+
+    return float(
+        f"{price:.{precision}f}"
+    )
 
 # =========================
 # SAFE QTY
@@ -752,6 +671,20 @@ def cancel_open_orders(symbol):
         )
 
 # =========================
+# PNL
+# =========================
+def unrealized_pnl(symbol):
+
+    pos = get_position(symbol)
+
+    if not pos:
+        return 0
+
+    return float(
+        pos["unRealizedProfit"]
+    )
+
+# =========================
 # OPEN POSITION
 # =========================
 def open_position(symbol, side, qty):
@@ -785,6 +718,8 @@ def open_position(symbol, side, qty):
             quantity=qty
         )
 
+        socketio.sleep(2)
+
         pos = get_position(symbol)
 
         if not pos:
@@ -795,11 +730,19 @@ def open_position(symbol, side, qty):
 
             return None
 
+        amt = float(
+            pos["positionAmt"]
+        )
+
         entry_price = float(
             pos["entryPrice"]
         )
 
-        if side == "LONG":
+        if amt > 0:
+
+            real_side = "LONG"
+
+            stop_side = SIDE_SELL
 
             tp_price = (
                 entry_price *
@@ -811,9 +754,16 @@ def open_position(symbol, side, qty):
                 (1 - SL_ROI)
             )
 
-            stop_side = SIDE_SELL
+            activation_price = (
+                entry_price *
+                (1 + 0.003)
+            )
 
         else:
+
+            real_side = "SHORT"
+
+            stop_side = SIDE_BUY
 
             tp_price = (
                 entry_price *
@@ -825,16 +775,34 @@ def open_position(symbol, side, qty):
                 (1 + SL_ROI)
             )
 
-            stop_side = SIDE_BUY
+            activation_price = (
+                entry_price *
+                (1 - 0.003)
+            )
+
+        tp_price = format_price(
+            symbol,
+            tp_price
+        )
+
+        sl_price = format_price(
+            symbol,
+            sl_price
+        )
+
+        activation_price = format_price(
+            symbol,
+            activation_price
+        )
 
         state["symbol"] = symbol
-        state["side"] = side
+        state["side"] = real_side
         state["entry"] = entry_price
-        state["qty"] = qty
+        state["qty"] = abs(amt)
 
         state["tp_price"] = tp_price
         state["sl_price"] = sl_price
-        state["trail"] = TRAIL_ROI
+        state["trail"] = TRAIL_ROI * 100
 
         # TAKE PROFIT
         client.futures_create_order(
@@ -845,10 +813,7 @@ def open_position(symbol, side, qty):
 
             type="TAKE_PROFIT_MARKET",
 
-            stopPrice=round(
-                tp_price,
-                6
-            ),
+            stopPrice=tp_price,
 
             closePosition=True,
 
@@ -866,10 +831,7 @@ def open_position(symbol, side, qty):
 
             type="STOP_MARKET",
 
-            stopPrice=round(
-                sl_price,
-                6
-            ),
+            stopPrice=sl_price,
 
             closePosition=True,
 
@@ -879,10 +841,13 @@ def open_position(symbol, side, qty):
         )
 
         # TRAILING STOP
-        callback_rate = max(
-            0.1,
-            min(TRAIL_ROI * 100, 5)
-        )
+        callback_rate = TRAIL_ROI * 100
+
+        if callback_rate < 0.1:
+            callback_rate = 0.1
+
+        if callback_rate > 5:
+            callback_rate = 5
 
         client.futures_create_order(
 
@@ -897,13 +862,34 @@ def open_position(symbol, side, qty):
                 2
             ),
 
-            quantity=qty,
+            activationPrice=activation_price,
 
-            workingType="MARK_PRICE"
+            quantity=abs(amt),
+
+            workingType="MARK_PRICE",
+
+            priceProtect=True
         )
 
         console.print(
-            f"[green]ENTRY {side} {symbol} SUCCESS[/green]"
+            f"[green]ENTRY {real_side} {symbol} SUCCESS[/green]"
+        )
+
+        console.print(
+            f"[cyan]ENTRY:[/cyan] {entry_price}"
+        )
+
+        console.print(
+            f"[green]TP:[/green] {tp_price}"
+        )
+
+        console.print(
+            f"[red]SL:[/red] {sl_price}"
+        )
+
+        console.print(
+            f"[yellow]TRAIL:[/yellow] "
+            f"{callback_rate}%"
         )
 
         return order
@@ -914,7 +900,7 @@ def open_position(symbol, side, qty):
             f"[red]ENTRY ERROR:[/red] {e}"
         )
 
-    return None
+        return None
 
 # =========================
 # DASHBOARD
@@ -951,7 +937,6 @@ def update_dashboard(data, screener):
         "atr_percent": data["atr_percent"],
 
         "trend": data["trend"],
-        "structure": data["structure"],
 
         "long_score": data["long_score"],
         "short_score": data["short_score"],
@@ -959,8 +944,6 @@ def update_dashboard(data, screener):
 
         "mtf_bullish": data["mtf_bullish"],
         "mtf_bearish": data["mtf_bearish"],
-        "mtf_total": data["mtf_total"],
-        "mtf_status": data["mtf_status"],
 
         "mtf": data["mtf"],
 
@@ -1025,6 +1008,77 @@ def terminal_dashboard(data):
         )
 
     console.print(table)
+
+# =========================
+# RESTORE POSITION
+# =========================
+def restore_position_state():
+
+    try:
+
+        existing_position = get_any_open_position()
+
+        if not existing_position:
+
+            console.print(
+                "[cyan]NO ACTIVE POSITION[/cyan]"
+            )
+
+            return
+
+        symbol = existing_position["symbol"]
+
+        amt = float(
+            existing_position["positionAmt"]
+        )
+
+        entry_price = float(
+            existing_position["entryPrice"]
+        )
+
+        state["symbol"] = symbol
+        state["entry"] = entry_price
+        state["qty"] = abs(amt)
+
+        if amt > 0:
+
+            state["side"] = "LONG"
+
+            state["tp_price"] = (
+                entry_price *
+                (1 + TP_ROI)
+            )
+
+            state["sl_price"] = (
+                entry_price *
+                (1 - SL_ROI)
+            )
+
+        else:
+
+            state["side"] = "SHORT"
+
+            state["tp_price"] = (
+                entry_price *
+                (1 - TP_ROI)
+            )
+
+            state["sl_price"] = (
+                entry_price *
+                (1 + SL_ROI)
+            )
+
+        console.print(
+            f"[green]RESTORED POSITION:[/green] "
+            f"{state['side']} "
+            f"{symbol}"
+        )
+
+    except Exception as e:
+
+        console.print(
+            f"[red]RESTORE ERROR:[/red] {e}"
+        )
 
 # =========================
 # RUN BOT
@@ -1107,14 +1161,15 @@ def run_bot():
                 )
 
                 state["symbol"] = symbol
-
                 state["entry"] = entry_price
-
                 state["qty"] = abs(amt)
 
                 if amt > 0:
+
                     state["side"] = "LONG"
+
                 else:
+
                     state["side"] = "SHORT"
 
                 console.print(
@@ -1142,11 +1197,6 @@ def run_bot():
                     "LONG",
                     "SHORT"
                 ]:
-
-                    socketio.sleep(10)
-                    continue
-
-                if get_any_open_position():
 
                     socketio.sleep(10)
                     continue
