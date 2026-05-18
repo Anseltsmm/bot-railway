@@ -94,7 +94,8 @@ SCAN_COINS = [
     "AVAXUSDT",
     "LTCUSDT",
     "DOTUSDT",
-    "NEARUSDT"
+    "NEARUSDT",
+    "BEATUSDT"
 ]
 
 console = Console()
