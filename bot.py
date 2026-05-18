@@ -1,6 +1,7 @@
 # =========================
 # bot.py
-# FULL UPDATED VERSION
+# FULL VERSION
+# AUTO ENTRY ENABLED
 # =========================
 
 import eventlet
@@ -63,7 +64,7 @@ USD_IDR = int(
 )
 
 # =========================
-# MULTI TF
+# MULTI TIMEFRAME
 # =========================
 TIMEFRAMES = [
     "1m",
@@ -93,8 +94,7 @@ SCAN_COINS = [
     "LTCUSDT",
     "DOTUSDT",
     "NEARUSDT",
-    "WIFUSDT",
-    "BEATUSDT"
+    "WIFUSDT"
 ]
 
 console = Console()
@@ -106,23 +106,6 @@ client = Client(
     API_KEY,
     API_SECRET
 )
-
-# =========================
-# TEST CONNECTION
-# =========================
-try:
-
-    client.futures_account_balance()
-
-    console.print(
-        "[green]BINANCE CONNECTED[/green]"
-    )
-
-except Exception as e:
-
-    console.print(
-        f"[red]BINANCE FAILED:[/red] {e}"
-    )
 
 # =========================
 # STATE
@@ -302,12 +285,7 @@ def analyze_timeframe(symbol, timeframe):
 
         return "SIDEWAYS"
 
-    except Exception as e:
-
-        console.print(
-            f"[red]TF ERROR {symbol} {timeframe}:[/red] {e}"
-        )
-
+    except:
         return "SIDEWAYS"
 
 # =========================
@@ -328,62 +306,39 @@ def signal(symbol):
         openp = df["open"]
         volume = df["volume"]
 
-        ema9 = EMAIndicator(
-            close,
-            9
-        ).ema_indicator()
+        ema9 = EMAIndicator(close, 9).ema_indicator()
+        ema21 = EMAIndicator(close, 21).ema_indicator()
+        ema200 = EMAIndicator(close, 200).ema_indicator()
 
-        ema21 = EMAIndicator(
-            close,
-            21
-        ).ema_indicator()
-
-        ema200 = EMAIndicator(
-            close,
-            200
-        ).ema_indicator()
-
-        rsi = RSIIndicator(
-            close,
-            14
-        ).rsi()
+        rsi = RSIIndicator(close, 14).rsi()
 
         atr = AverageTrueRange(
-
             high,
             low,
             close,
             14
-
         ).average_true_range()
 
-        avg_volume = (
-            volume.rolling(20).mean()
-        )
+        avg_volume = volume.rolling(20).mean()
 
         volume_ratio = (
-
             volume.iloc[-1] /
             avg_volume.iloc[-1]
         )
 
         atr_percent = (
-
             atr.iloc[-1] /
             close.iloc[-1]
-
         ) * 100
 
         current_price = close.iloc[-1]
 
         bullish_trend = (
-
             ema21.iloc[-1] >
             ema200.iloc[-1]
         )
 
         bearish_trend = (
-
             ema21.iloc[-1] <
             ema200.iloc[-1]
         )
@@ -430,9 +385,6 @@ def signal(symbol):
             volume_ratio > 1.1
         )
 
-        # =========================
-        # MULTI TF
-        # =========================
         mtf_bullish = 0
         mtf_bearish = 0
 
@@ -463,9 +415,6 @@ def signal(symbol):
         elif mtf_bearish > mtf_bullish:
             mtf_status = "BEARISH"
 
-        # =========================
-        # SCORE
-        # =========================
         long_score = 0
         short_score = 0
 
@@ -482,7 +431,6 @@ def signal(symbol):
             short_score += 25
 
         if good_volume:
-
             long_score += 25
             short_score += 25
 
@@ -508,49 +456,22 @@ def signal(symbol):
         if confidence > 100:
             confidence = 100
 
-        # =========================
-        # SIGNAL
-        # =========================
         sig = "NONE"
 
         if (
-
             long_score >= 85
-
-            and
-
-            mtf_bullish >= 5
-
-            and
-
-            not_too_far
-
-            and
-
-            atr_percent > 0.05
-
+            and mtf_bullish >= 5
+            and not_too_far
+            and atr_percent > 0.05
         ):
-
             sig = "LONG"
 
         elif (
-
             short_score >= 85
-
-            and
-
-            mtf_bearish >= 5
-
-            and
-
-            not_too_far
-
-            and
-
-            atr_percent > 0.05
-
+            and mtf_bearish >= 5
+            and not_too_far
+            and atr_percent > 0.05
         ):
-
             sig = "SHORT"
 
         return {
@@ -561,20 +482,11 @@ def signal(symbol):
 
             "price": current_price,
 
-            "rsi": round(
-                rsi.iloc[-1],
-                2
-            ),
+            "rsi": round(rsi.iloc[-1], 2),
 
-            "volume_ratio": round(
-                volume_ratio,
-                2
-            ),
+            "volume_ratio": round(volume_ratio, 2),
 
-            "atr_percent": round(
-                atr_percent,
-                4
-            ),
+            "atr_percent": round(atr_percent, 4),
 
             "trend": trend,
 
@@ -625,11 +537,8 @@ def get_position(symbol):
             if abs(amt) > 0.000001:
                 return p
 
-    except Exception as e:
-
-        console.print(
-            f"[red]POSITION ERROR:[/red] {e}"
-        )
+    except:
+        pass
 
     return None
 
@@ -648,7 +557,164 @@ def unrealized_pnl(symbol):
     )
 
 # =========================
-# UPDATE DASHBOARD
+# LOT FILTER
+# =========================
+def get_lot_filters(symbol):
+
+    info = client.futures_exchange_info()
+
+    for s in info["symbols"]:
+
+        if s["symbol"] == symbol:
+
+            for f in s["filters"]:
+
+                if f["filterType"] == "LOT_SIZE":
+
+                    return (
+                        float(f["stepSize"]),
+                        float(f["minQty"])
+                    )
+
+    return 0.001, 0.001
+
+# =========================
+# SAFE QTY
+# =========================
+def safe_qty(qty, step, min_qty):
+
+    precision = max(
+        0,
+        int(round(-math.log(step, 10), 0))
+    )
+
+    qty = round(qty, precision)
+
+    qty = math.floor(qty / step) * step
+
+    if qty < min_qty:
+        qty = min_qty
+
+    return float(f"{qty:.8f}")
+
+# =========================
+# SET LEVERAGE
+# =========================
+def set_leverage(symbol):
+
+    try:
+
+        client.futures_change_leverage(
+            symbol=symbol,
+            leverage=LEVERAGE
+        )
+
+    except:
+        pass
+
+# =========================
+# OPEN POSITION
+# =========================
+def open_position(symbol, side, qty):
+
+    try:
+
+        set_leverage(symbol)
+
+        order = client.futures_create_order(
+
+            symbol=symbol,
+
+            side=(
+                SIDE_BUY
+                if side == "LONG"
+                else SIDE_SELL
+            ),
+
+            type=ORDER_TYPE_MARKET,
+
+            quantity=qty
+        )
+
+        price = float(
+
+            client.futures_mark_price(
+                symbol=symbol
+            )["markPrice"]
+        )
+
+        if side == "LONG":
+
+            tp_price = (
+                price * (1 + TP_ROI)
+            )
+
+            sl_price = (
+                price * (1 - SL_ROI)
+            )
+
+            stop_side = SIDE_SELL
+
+        else:
+
+            tp_price = (
+                price * (1 - TP_ROI)
+            )
+
+            sl_price = (
+                price * (1 + SL_ROI)
+            )
+
+            stop_side = SIDE_BUY
+
+        state["tp_price"] = tp_price
+        state["sl_price"] = sl_price
+        state["trail"] = TRAIL_ROI
+
+        # TP
+        client.futures_create_order(
+
+            symbol=symbol,
+
+            side=stop_side,
+
+            type="TAKE_PROFIT_MARKET",
+
+            stopPrice=round(tp_price, 6),
+
+            closePosition=True
+        )
+
+        # SL
+        client.futures_create_order(
+
+            symbol=symbol,
+
+            side=stop_side,
+
+            type="STOP_MARKET",
+
+            stopPrice=round(sl_price, 6),
+
+            closePosition=True
+        )
+
+        console.print(
+            f"[green]ENTRY {side} {symbol} SUCCESS[/green]"
+        )
+
+        return order
+
+    except Exception as e:
+
+        console.print(
+            f"[red]ENTRY ERROR:[/red] {e}"
+        )
+
+    return None
+
+# =========================
+# DASHBOARD
 # =========================
 def update_dashboard(data, screener):
 
@@ -660,9 +726,6 @@ def update_dashboard(data, screener):
             state["symbol"]
         )
 
-    # =========================
-    # BALANCE
-    # =========================
     try:
 
         balance_info = client.futures_account_balance()
@@ -685,23 +748,15 @@ def update_dashboard(data, screener):
 
         usdt_balance = 0
 
-    # =========================
-    # WINRATE
-    # =========================
     winrate = 0
 
     if state["trade_count"] > 0:
 
         winrate = (
-
             state["win"] /
             state["trade_count"]
-
         ) * 100
 
-    # =========================
-    # UPDATE WEB DATA
-    # =========================
     web_data.update({
 
         "symbol": data["symbol"],
@@ -771,7 +826,7 @@ def update_dashboard(data, screener):
     )
 
 # =========================
-# TERMINAL DASHBOARD
+# TERMINAL
 # =========================
 def terminal_dashboard(data):
 
@@ -795,9 +850,9 @@ def terminal_dashboard(data):
     console.print(table)
 
 # =========================
-# MAIN BOT LOOP
+# RUN BOT
 # =========================
-def start_bot():
+def run_bot():
 
     while True:
 
@@ -835,11 +890,17 @@ def start_bot():
                     data["short_score"]
                 )
 
-                if score > best_score:
+                if (
+                    data["signal"] != "NONE"
+                    and score > best_score
+                ):
 
                     best_score = score
                     best_coin = data
 
+            # =========================
+            # UPDATE DASHBOARD
+            # =========================
             if best_coin:
 
                 update_dashboard(
@@ -851,7 +912,73 @@ def start_bot():
                     best_coin
                 )
 
-            socketio.sleep(10)
+            # =========================
+            # CHECK POSITION
+            # =========================
+            if state["symbol"]:
+
+                pos = get_position(
+                    state["symbol"]
+                )
+
+                if pos:
+
+                    console.print(
+                        "[yellow]POSITION STILL OPEN[/yellow]"
+                    )
+
+                    socketio.sleep(10)
+                    continue
+
+                else:
+
+                    state["symbol"] = None
+                    state["side"] = None
+
+            # =========================
+            # OPEN POSITION
+            # =========================
+            if best_coin:
+
+                symbol = best_coin["symbol"]
+
+                step, min_qty = get_lot_filters(
+                    symbol
+                )
+
+                qty = (
+                    ORDER_USDT *
+                    LEVERAGE
+                ) / best_coin["price"]
+
+                qty = safe_qty(
+                    qty,
+                    step,
+                    min_qty
+                )
+
+                order = open_position(
+
+                    symbol,
+
+                    best_coin["signal"],
+
+                    qty
+                )
+
+                if order:
+
+                    state["symbol"] = symbol
+
+                    state["side"] = best_coin["signal"]
+
+                    state["entry"] = best_coin["price"]
+
+                    state["qty"] = qty
+
+                    state["trade_count"] += 1
+
+            socketio.sleep(15)
 
         except Exception as e:
 
