@@ -1,64 +1,93 @@
 from strategy.scorer import calculate_mtf
 
+# =========================================
+# MAIN ANALYZER
+# =========================================
+
 def analyze_multi_tf():
 
     data = calculate_mtf()
 
-    signal = "NONE"
+    long_score = data["long_score"]
+    short_score = data["short_score"]
 
-    confidence = 0
+    bullish_tf = data["bullish_tf"]
+    bearish_tf = data["bearish_tf"]
+
+    signal = "NONE"
 
     trend = "SIDEWAYS"
 
-    # ====================================
-    # TREND
-    # ====================================
+    confidence = 0
 
-    if data["bullish_tf"] >= 5:
+    # =========================================
+    # TREND
+    # =========================================
+
+    if bullish_tf > bearish_tf:
         trend = "BULLISH"
 
-    elif data["bearish_tf"] >= 5:
+    elif bearish_tf > bullish_tf:
         trend = "BEARISH"
 
-    # ====================================
-    # ENTRY LONG
-    # ====================================
+    # =========================================
+    # SIGNAL LOGIC
+    # =========================================
+
+    score_diff = abs(
+        long_score - short_score
+    )
+
+    confidence = min(
+        100,
+        score_diff * 5
+    )
+
+    # =========================================
+    # LONG
+    # =========================================
 
     if (
-        data["bullish_tf"] >= 5
+        bullish_tf >= 5
         and
-        data["long_score"] >
-        data["short_score"]
+        long_score > short_score
+        and
+        confidence >= 60
     ):
 
         signal = "LONG"
 
-        confidence = round(
-            (
-                data["bullish_tf"] / 8
-            ) * 100,
-            2
-        )
-
-    # ====================================
-    # ENTRY SHORT
-    # ====================================
+    # =========================================
+    # SHORT
+    # =========================================
 
     elif (
-        data["bearish_tf"] >= 5
+        bearish_tf >= 5
         and
-        data["short_score"] >
-        data["long_score"]
+        short_score > long_score
+        and
+        confidence >= 60
     ):
 
         signal = "SHORT"
 
-        confidence = round(
-            (
-                data["bearish_tf"] / 8
-            ) * 100,
-            2
-        )
+    # =========================================
+    # STRUCTURE
+    # =========================================
+
+    structure = "RANGING"
+
+    if confidence >= 70:
+
+        if signal == "LONG":
+            structure = "UPTREND"
+
+        elif signal == "SHORT":
+            structure = "DOWNTREND"
+
+    # =========================================
+    # RETURN
+    # =========================================
 
     return {
 
@@ -66,19 +95,15 @@ def analyze_multi_tf():
 
         "trend": trend,
 
-        "structure": trend,
+        "structure": structure,
 
         "confidence": confidence,
 
-        "long_score": data["long_score"],
+        "long_score": long_score,
 
-        "short_score": data["short_score"],
+        "short_score": short_score,
 
         "rsi": data["rsi"],
-
-        "mtf_bullish": data["bullish_tf"],
-
-        "mtf_bearish": data["bearish_tf"],
 
         "mtf": data["mtf"]
     }
