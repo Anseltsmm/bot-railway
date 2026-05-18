@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+BINANCE FUTURES AI SCREENER BOT
+</title>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script src="https://s3.tradingview.com/tv.js"></script>
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial,sans-serif;
+}
+
+body{
+background:#020617;
+color:white;
+padding:20px;
+}
+
+.header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+flex-wrap:wrap;
+gap:10px;
+}
+
+.title{
+font-size:32px;
+font-weight:bold;
+}
+
+.status{
+background:#16a34a;
+padding:10px 18px;
+border-radius:12px;
+font-weight:bold;
+}
+
+.grid{
+display:grid;
+grid-template-columns:
+repeat(auto-fit,minmax(220px,1fr));
+gap:20px;
+}
+
+.card{
+background:#0f172a;
+padding:20px;
+border-radius:20px;
+border:1px solid #1e293b;
+box-shadow:0 0 20px rgba(0,0,0,0.4);
+transition:0.3s;
+}
+
+.card:hover{
+transform:translateY(-3px);
+}
+
+.label{
+color:#94a3b8;
+margin-bottom:10px;
+font-size:14px;
+}
+
+.value{
+font-size:28px;
+font-weight:bold;
+word-break:break-word;
+}
+
+.green{
+color:#22c55e;
+}
+
+.red{
+color:#ef4444;
+}
+
+.yellow{
+color:#facc15;
+}
+
+.blue{
+color:#38bdf8;
+}
+
+.orange{
+color:#fb923c;
+}
+
+.purple{
+color:#c084fc;
+}
+
+.chart-box{
+margin-top:30px;
+background:#0f172a;
+padding:20px;
+border-radius:20px;
+border:1px solid #1e293b;
+}
+
+.chart-title{
+margin-bottom:20px;
+font-size:22px;
+font-weight:bold;
+}
+
+.footer{
+margin-top:20px;
+text-align:center;
+color:#64748b;
+font-size:13px;
+}
+
+.signal-long{
+color:#22c55e;
+}
+
+.signal-short{
+color:#ef4444;
+}
+
+.signal-none{
+color:#facc15;
+}
+
+.screener-box{
+margin-top:30px;
+background:#0f172a;
+padding:20px;
+border-radius:20px;
+border:1px solid #1e293b;
+overflow-x:auto;
+}
+
+.screener-table{
+width:100%;
+border-collapse:collapse;
+margin-top:10px;
+}
+
+.screener-table th{
+padding:12px;
+text-align:left;
+background:#111827;
+color:#94a3b8;
+font-size:14px;
+}
+
+.screener-table td{
+padding:12px;
+border-top:1px solid #1e293b;
+font-size:14px;
+}
+
+.long{
+color:#22c55e;
+font-weight:bold;
+}
+
+.short{
+color:#ef4444;
+font-weight:bold;
+}
+
+.none{
+color:#facc15;
+font-weight:bold;
+}
+
+.timeframe-grid{
+display:grid;
+grid-template-columns:
+repeat(auto-fit,minmax(120px,1fr));
+gap:15px;
+margin-top:20px;
+}
+
+.tf-card{
+background:#111827;
+padding:15px;
+border-radius:15px;
+text-align:center;
+border:1px solid #1e293b;
+}
+
+.tf-title{
+font-size:13px;
+color:#94a3b8;
+margin-bottom:10px;
+}
+
+.tf-value{
+font-size:20px;
+font-weight:bold;
+}
+
+@media(max-width:768px){
+
+.title{
+font-size:22px;
+}
+
+.value{
+font-size:22px;
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<div class="title">
+🚀 BINANCE FUTURES AI SCREENER BOT
+</div>
+
+<div class="status">
+LIVE AI ENGINE
+</div>
+
+</div>
+
+<div class="grid">
+
+<div class="card">
+<div class="label">ACTIVE PAIR</div>
+<div class="value yellow" id="symbol">-</div>
+</div>
+
+<div class="card">
+<div class="label">SIGNAL</div>
+<div class="value signal-none" id="signal">NONE</div>
+</div>
+
+<div class="card">
+<div class="label">PRICE</div>
+<div class="value" id="price">0</div>
+</div>
+
+<div class="card">
+<div class="label">BALANCE</div>
+<div class="value green" id="balance">$0</div>
+</div>
+
+<div class="card">
+<div class="label">POSITION</div>
+<div class="value blue" id="position">NONE</div>
+</div>
+
+<div class="card">
+<div class="label">ENTRY PRICE</div>
+<div class="value" id="entry">-</div>
+</div>
+
+<div class="card">
+<div class="label">STOP LOSS</div>
+<div class="value red" id="sl">-</div>
+</div>
+
+<div class="card">
+<div class="label">TAKE PROFIT</div>
+<div class="value green" id="tp">-</div>
+</div>
+
+<div class="card">
+<div class="label">TRAILING STOP</div>
+<div class="value orange" id="trail">-</div>
+</div>
+
+<div class="card">
+<div class="label">UNREALIZED PNL</div>
+<div class="value" id="pnl">0</div>
+</div>
+
+<div class="card">
+<div class="label">UPNL IDR</div>
+<div class="value" id="pnl_idr">0</div>
+</div>
+
+<div class="card">
+<div class="label">RSI</div>
+<div class="value purple" id="rsi">0</div>
+</div>
+
+<div class="card">
+<div class="label">MARKET TREND</div>
+<div class="value" id="market_trend">-</div>
+</div>
+
+<div class="card">
+<div class="label">STRUCTURE</div>
+<div class="value" id="market_structure">-</div>
+</div>
+
+<div class="card">
+<div class="label">LONG SCORE</div>
+<div class="value green" id="long_score">0</div>
+</div>
+
+<div class="card">
+<div class="label">SHORT SCORE</div>
+<div class="value red" id="short_score">0</div>
+</div>
+
+<div class="card">
+<div class="label">AI CONFIDENCE</div>
+<div class="value yellow" id="confidence">0%</div>
+</div>
+
+<div class="card">
+<div class="label">WINRATE</div>
+<div class="value yellow" id="winrate">0%</div>
+</div>
+
+<div class="card">
+<div class="label">TOTAL TRADE</div>
+<div class="value" id="trade_count">0</div>
+</div>
+
+</div>
+
+<div class="chart-box">
+
+<div class="chart-title">
+📈 REALTIME PNL
+</div>
+
+<canvas id="pnlChart"></canvas>
+
+</div>
+
+<div class="screener-box">
+
+<div class="chart-title">
+🔥 MARKET SCREENER
+</div>
+
+<table class="screener-table">
+
+<thead>
+<tr>
+<th>PAIR</th>
+<th>SIGNAL</th>
+<th>LONG</th>
+<th>SHORT</th>
+<th>TREND</th>
+<th>CONF</th>
+</tr>
+</thead>
+
+<tbody id="screenerBody">
+
+<tr>
+<td colspan="6">
+Waiting market scan...
+</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+<div class="chart-box">
+
+<div class="chart-title">
+📊 LIVE CHART
+</div>
+
+<div id="tradingview_chart"></div>
+
+</div>
+
+<div class="footer">
+AI MULTI TIME FRAME • SMART SCALPING • AUTO SCREENER
+</div>
+
+<script>
+
+const socket = io();
+
+let currentChartSymbol = "BTCUSDT";
+
+const labels = [];
+const pnlData = [];
+
+const chart = new Chart(
+document.getElementById('pnlChart'),
+{
+type:'line',
+data:{
+labels:labels,
+datasets:[{
+label:'Realtime PNL',
+data:pnlData,
+borderWidth:2,
+tension:0.3
+}]
+},
+options:{
+responsive:true
+}
+}
+);
+
+function safeNumber(v, d=4){
+
+const n = parseFloat(v);
+
+if(isNaN(n)) return "-";
+
+return n.toFixed(d);
+}
+
+function setText(id,val){
+
+const el = document.getElementById(id);
+
+if(el){
+el.innerText = val;
+}
+}
+
+function loadTradingView(symbol){
+
+if(currentChartSymbol === symbol){
+return;
+}
+
+currentChartSymbol = symbol;
+
+document.getElementById(
+'tradingview_chart'
+).innerHTML = "";
+
+new TradingView.widget({
+
+width:"100%",
+height:550,
+
+symbol:"BINANCE:" + symbol,
+
+interval:"5",
+
+timezone:"Asia/Jakarta",
+
+theme:"dark",
+
+style:"1",
+
+locale:"en",
+
+toolbar_bg:"#0f172a",
+
+enable_publishing:false,
+
+hide_top_toolbar:false,
+
+save_image:false,
+
+container_id:"tradingview_chart"
+});
+}
+
+loadTradingView("BTCUSDT");
+
+socket.on('update', function(data){
+
+console.log(data);
+
+setText('symbol', data.symbol || '-');
+
+setText(
+'price',
+safeNumber(data.price)
+);
+
+setText(
+'balance',
+'$' + safeNumber(data.balance,2)
+);
+
+setText(
+'position',
+data.position || 'NONE'
+);
+
+setText(
+'entry',
+safeNumber(data.entry)
+);
+
+setText(
+'sl',
+data.sl_price
+? safeNumber(data.sl_price)
+: '-'
+);
+
+setText(
+'tp',
+data.tp_price
+? safeNumber(data.tp_price)
+: '-'
+);
+
+setText(
+'trail',
+data.trail
+? (parseFloat(data.trail) * 100).toFixed(2) + '%'
+: '-'
+);
+
+setText(
+'pnl',
+safeNumber(data.pnl)
+);
+
+setText(
+'pnl_idr',
+'Rp ' +
+Number(data.pnl_idr || 0)
+.toLocaleString()
+);
+
+setText(
+'rsi',
+safeNumber(data.rsi,2)
+);
+
+setText(
+'market_trend',
+data.trend || '-'
+);
+
+setText(
+'market_structure',
+data.structure || '-'
+);
+
+setText(
+'long_score',
+data.long_score || 0
+);
+
+setText(
+'short_score',
+data.short_score || 0
+);
+
+setText(
+'confidence',
+(data.confidence || 0) + '%'
+);
+
+setText(
+'trade_count',
+data.trade_count || 0
+);
+
+setText(
+'winrate',
+(data.winrate || 0) + '%'
+);
+
+const signalEl =
+document.getElementById('signal');
+
+signalEl.innerText =
+data.signal || 'NONE';
+
+signalEl.className =
+'value';
+
+if(data.signal === 'LONG'){
+signalEl.classList.add(
+'signal-long'
+);
+}
+else if(data.signal === 'SHORT'){
+signalEl.classList.add(
+'signal-short'
+);
+}
+else{
+signalEl.classList.add(
+'signal-none'
+);
+}
+
+labels.push(
+new Date().toLocaleTimeString()
+);
+
+pnlData.push(
+Number(data.pnl || 0)
+);
+
+if(labels.length > 50){
+
+labels.shift();
+pnlData.shift();
+
+}
+
+chart.update();
+
+if(data.symbol){
+
+loadTradingView(
+data.symbol
+);
+
+}
+
+if(data.screener){
+
+let html = "";
+
+data.screener.forEach(item => {
+
+let cls = "none";
+
+if(item.signal === "LONG"){
+cls = "long";
+}
+
+if(item.signal === "SHORT"){
+cls = "short";
+}
+
+html += `
+
+<tr>
+
+<td>${item.symbol}</td>
+
+<td class="${cls}">
+${item.signal}
+</td>
+
+<td>${item.long_score}</td>
+
+<td>${item.short_score}</td>
+
+<td>${item.trend}</td>
+
+<td>${item.confidence}%</td>
+
+</tr>
+
+`;
+
+});
+
+document.getElementById(
+'screenerBody'
+).innerHTML = html;
+
+}
+
+});
+
+</script>
+
+</body>
+</html>
