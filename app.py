@@ -8,7 +8,8 @@ eventlet.monkey_patch()
 from flask import Flask, render_template, jsonify
 
 from extensions import socketio
-from bot import start_bot, web_data
+
+from bot import run_bot, web_data
 
 # =========================
 # FLASK
@@ -16,8 +17,12 @@ from bot import start_bot, web_data
 app = Flask(__name__)
 
 socketio.init_app(
+
     app,
-    cors_allowed_origins="*"
+
+    cors_allowed_origins="*",
+
+    async_mode="eventlet"
 )
 
 # =========================
@@ -32,12 +37,30 @@ def api_data():
     return jsonify(web_data)
 
 # =========================
+# SOCKET LOOP
+# =========================
+def socket_sender():
+
+    while True:
+
+        socketio.emit(
+            "update",
+            web_data
+        )
+
+        socketio.sleep(2)
+
+# =========================
 # START
 # =========================
 if __name__ == "__main__":
 
     socketio.start_background_task(
-        start_bot
+        socket_sender
+    )
+
+    socketio.start_background_task(
+        run_bot
     )
 
     socketio.run(
