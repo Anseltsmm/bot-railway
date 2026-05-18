@@ -141,6 +141,7 @@ background:#0f172a;
 padding:20px;
 border-radius:20px;
 border:1px solid #1e293b;
+overflow-x:auto;
 }
 
 .screener-table{
@@ -202,6 +203,18 @@ margin-bottom:10px;
 .tf-value{
 font-size:20px;
 font-weight:bold;
+}
+
+@media(max-width:768px){
+
+.title{
+font-size:22px;
+}
+
+.value{
+font-size:22px;
+}
+
 }
 
 </style>
@@ -336,7 +349,7 @@ LIVE AI ENGINE
 </div>
 
 <!-- ===================== -->
-<!-- MULTI TIME FRAME -->
+<!-- MULTI TF -->
 <!-- ===================== -->
 
 <div class="chart-box">
@@ -368,6 +381,11 @@ LIVE AI ENGINE
 </div>
 
 <div class="tf-card">
+<div class="tf-title">2H</div>
+<div class="tf-value" id="tf_2h">-</div>
+</div>
+
+<div class="tf-card">
 <div class="tf-title">4H</div>
 <div class="tf-value" id="tf_4h">-</div>
 </div>
@@ -377,12 +395,17 @@ LIVE AI ENGINE
 <div class="tf-value" id="tf_1d">-</div>
 </div>
 
+<div class="tf-card">
+<div class="tf-title">1W</div>
+<div class="tf-value" id="tf_1w">-</div>
+</div>
+
 </div>
 
 </div>
 
 <!-- ===================== -->
-<!-- SCREENER -->
+<!-- MARKET SCREENER -->
 <!-- ===================== -->
 
 <div class="screener-box">
@@ -410,7 +433,7 @@ LIVE AI ENGINE
 
 <tr>
 <td colspan="6">
-Waiting scan...
+Waiting market scan...
 </td>
 </tr>
 
@@ -421,7 +444,7 @@ Waiting scan...
 </div>
 
 <!-- ===================== -->
-<!-- PNL -->
+<!-- PNL CHART -->
 <!-- ===================== -->
 
 <div class="chart-box">
@@ -435,7 +458,7 @@ Waiting scan...
 </div>
 
 <!-- ===================== -->
-<!-- TV -->
+<!-- TRADINGVIEW -->
 <!-- ===================== -->
 
 <div class="chart-box">
@@ -454,7 +477,10 @@ AI MULTI TIME FRAME • SMART SCALPING • AUTO SCREENER
 
 <script>
 
-const socket = io();
+const socket = io({
+transports:['websocket'],
+reconnection:true
+});
 
 const labels = [];
 const pnlData = [];
@@ -468,7 +494,7 @@ data:{
 labels:labels,
 
 datasets:[{
-label:'PNL',
+label:'Realtime PNL',
 data:pnlData,
 borderWidth:3,
 tension:0.4
@@ -476,7 +502,28 @@ tension:0.4
 },
 
 options:{
-responsive:true
+responsive:true,
+
+plugins:{
+legend:{
+labels:{
+color:'white'
+}
+}
+},
+
+scales:{
+x:{
+ticks:{
+color:'white'
+}
+},
+y:{
+ticks:{
+color:'white'
+}
+}
+}
 }
 });
 
@@ -484,7 +531,9 @@ function setTF(id,val){
 
 const el = document.getElementById(id);
 
-el.innerText = val;
+if(!el) return;
+
+el.innerText = val || '-';
 
 el.classList.remove(
 'green',
@@ -503,6 +552,7 @@ el.classList.add('red');
 }else{
 
 el.classList.add('yellow');
+
 }
 }
 
@@ -533,6 +583,10 @@ toolbar_bg:"#0f172a",
 
 enable_publishing:false,
 
+hide_top_toolbar:false,
+
+save_image:false,
+
 container_id:"tradingview_chart"
 });
 }
@@ -541,11 +595,12 @@ loadTradingView("BTCUSDT");
 
 socket.on('update', function(data){
 
+// =====================
+// BASIC
+// =====================
+
 document.getElementById('symbol').innerText =
 data.symbol || '-';
-
-document.getElementById('signal').innerText =
-data.signal || 'NONE';
 
 document.getElementById('price').innerText =
 Number(data.price || 0).toFixed(4);
@@ -559,6 +614,10 @@ data.position || 'NONE';
 document.getElementById('entry').innerText =
 Number(data.entry || 0).toFixed(4);
 
+// =====================
+// TP SL
+// =====================
+
 document.getElementById('sl').innerText =
 Number(data.sl_price || 0).toFixed(4);
 
@@ -568,6 +627,10 @@ Number(data.tp_price || 0).toFixed(4);
 document.getElementById('trail').innerText =
 Number(data.trail || 0).toFixed(2) + '%';
 
+// =====================
+// PNL
+// =====================
+
 document.getElementById('pnl').innerText =
 Number(data.pnl || 0).toFixed(4);
 
@@ -576,8 +639,16 @@ document.getElementById('pnl_idr').innerText =
 Number(data.pnl_idr || 0)
 .toLocaleString();
 
+// =====================
+// RSI
+// =====================
+
 document.getElementById('rsi').innerText =
 Number(data.rsi || 0).toFixed(2);
+
+// =====================
+// TREND
+// =====================
 
 document.getElementById('market_trend').innerText =
 data.trend || '-';
@@ -585,20 +656,36 @@ data.trend || '-';
 document.getElementById('market_structure').innerText =
 data.structure || '-';
 
+// =====================
+// SCORE
+// =====================
+
 document.getElementById('long_score').innerText =
 data.long_score || 0;
 
 document.getElementById('short_score').innerText =
 data.short_score || 0;
 
+// =====================
+// CONFIDENCE
+// =====================
+
 document.getElementById('confidence').innerText =
 (data.confidence || 0) + '%';
 
+// =====================
+// MTF
+// =====================
+
 document.getElementById('bullish_tf').innerText =
-data.bullish_tf || 0;
+data.mtf_bullish || 0;
 
 document.getElementById('bearish_tf').innerText =
-data.bearish_tf || 0;
+data.mtf_bearish || 0;
+
+// =====================
+// TRADE
+// =====================
 
 document.getElementById('trade_count').innerText =
 data.trade_count || 0;
@@ -606,16 +693,84 @@ data.trade_count || 0;
 document.getElementById('winrate').innerText =
 (data.winrate || 0) + '%';
 
+// =====================
+// SIGNAL COLOR
+// =====================
+
+const signalEl =
+document.getElementById('signal');
+
+signalEl.innerText =
+data.signal || 'NONE';
+
+signalEl.classList.remove(
+'signal-long',
+'signal-short',
+'signal-none'
+);
+
+if(data.signal === 'LONG'){
+
+signalEl.classList.add(
+'signal-long'
+);
+
+}else if(data.signal === 'SHORT'){
+
+signalEl.classList.add(
+'signal-short'
+);
+
+}else{
+
+signalEl.classList.add(
+'signal-none'
+);
+
+}
+
+// =====================
+// PNL COLOR
+// =====================
+
+const pnlEl =
+document.getElementById('pnl');
+
+pnlEl.classList.remove(
+'green',
+'red'
+);
+
+if(Number(data.pnl || 0) >= 0){
+
+pnlEl.classList.add('green');
+
+}else{
+
+pnlEl.classList.add('red');
+
+}
+
+// =====================
+// MTF STATUS
+// =====================
+
 if(data.mtf){
 
 setTF('tf_1m', data.mtf["1m"]);
 setTF('tf_5m', data.mtf["5m"]);
 setTF('tf_15m', data.mtf["15m"]);
 setTF('tf_1h', data.mtf["1h"]);
+setTF('tf_2h', data.mtf["2h"]);
 setTF('tf_4h', data.mtf["4h"]);
 setTF('tf_1d', data.mtf["1d"]);
+setTF('tf_1w', data.mtf["1w"]);
 
 }
+
+// =====================
+// PNL CHART
+// =====================
 
 labels.push(
 new Date().toLocaleTimeString()
@@ -634,6 +789,10 @@ pnlData.shift();
 
 chart.update('none');
 
+// =====================
+// TV CHART
+// =====================
+
 if(data.symbol){
 
 loadTradingView(
@@ -641,6 +800,10 @@ data.symbol
 );
 
 }
+
+// =====================
+// SCREENER
+// =====================
 
 if(data.screener){
 
