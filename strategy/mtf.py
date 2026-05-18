@@ -4,6 +4,10 @@ from core.trader import client
 from config import *
 from strategy.indicators import add_indicators
 
+# =========================================
+# MULTI TIME FRAME
+# =========================================
+
 TIMEFRAMES = [
     "1m",
     "5m",
@@ -14,6 +18,10 @@ TIMEFRAMES = [
     "1d",
     "1w"
 ]
+
+# =========================================
+# GET DATAFRAME
+# =========================================
 
 def get_tf_dataframe(tf):
 
@@ -38,7 +46,13 @@ def get_tf_dataframe(tf):
 
     df = df.astype(float)
 
-    return add_indicators(df)
+    df = add_indicators(df)
+
+    return df
+
+# =========================================
+# ANALYZE SINGLE TF
+# =========================================
 
 def analyze_tf(tf):
 
@@ -49,18 +63,18 @@ def analyze_tf(tf):
     bullish = 0
     bearish = 0
 
-    # ====================================
+    # =========================================
     # EMA TREND
-    # ====================================
+    # =========================================
 
     if last["ema_fast"] > last["ema_slow"]:
         bullish += 2
     else:
         bearish += 2
 
-    # ====================================
+    # =========================================
     # RSI
-    # ====================================
+    # =========================================
 
     if last["rsi"] > 55:
         bullish += 1
@@ -68,29 +82,32 @@ def analyze_tf(tf):
     if last["rsi"] < 45:
         bearish += 1
 
-    # ====================================
+    # =========================================
     # MACD
-    # ====================================
+    # =========================================
 
     if last["macd"] > last["macd_signal"]:
         bullish += 1
     else:
         bearish += 1
 
-    # ====================================
-    # ADX TREND STRENGTH
-    # ====================================
+    # =========================================
+    # ADX
+    # =========================================
 
     strong_trend = last["adx"] >= 20
 
     if strong_trend:
 
-        bullish += 1
-        bearish += 1
+        if bullish > bearish:
+            bullish += 1
 
-    # ====================================
-    # VOLUME SPIKE
-    # ====================================
+        elif bearish > bullish:
+            bearish += 1
+
+    # =========================================
+    # VOLUME
+    # =========================================
 
     high_volume = (
         last["volume"] >
@@ -99,14 +116,21 @@ def analyze_tf(tf):
 
     if high_volume:
 
-        bullish += 1
-        bearish += 1
+        if bullish > bearish:
+            bullish += 1
 
-    # ====================================
-    # ATR VOLATILITY
-    # ====================================
+        elif bearish > bullish:
+            bearish += 1
+
+    # =========================================
+    # ATR
+    # =========================================
 
     volatility = last["atr"]
+
+    # =========================================
+    # SIGNAL
+    # =========================================
 
     signal = "NEUTRAL"
 
@@ -115,6 +139,10 @@ def analyze_tf(tf):
 
     elif bearish > bullish:
         signal = "BEARISH"
+
+    # =========================================
+    # RETURN
+    # =========================================
 
     return {
 
@@ -131,48 +159,4 @@ def analyze_tf(tf):
         "atr": round(volatility, 4),
 
         "high_volume": high_volume
-    }:
-
-    df = get_tf_dataframe(tf)
-
-    last = df.iloc[-1]
-
-    bullish = 0
-    bearish = 0
-
-    # EMA
-
-    if last["ema_fast"] > last["ema_slow"]:
-        bullish += 1
-    else:
-        bearish += 1
-
-    # RSI
-
-    if last["rsi"] > 55:
-        bullish += 1
-
-    if last["rsi"] < 45:
-        bearish += 1
-
-    # MACD
-
-    if last["macd"] > last["macd_signal"]:
-        bullish += 1
-    else:
-        bearish += 1
-
-    signal = "NEUTRAL"
-
-    if bullish > bearish:
-        signal = "BULLISH"
-
-    elif bearish > bullish:
-        signal = "BEARISH"
-
-    return {
-        "signal": signal,
-        "bullish": bullish,
-        "bearish": bearish,
-        "rsi": round(last["rsi"], 2)
     }
