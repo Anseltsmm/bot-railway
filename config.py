@@ -1,0 +1,19 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY = os.getenv("BINANCE_API_KEY")
+API_SECRET = os.getenv("BINANCE_API_SECRET")
+
+SYMBOL = "DOGEUSDT"
+INTERVAL = "5m"
+
+LEVERAGE = 10
+USDT_PER_TRADE = 1
+
+TP_PERCENT = 1.5
+SL_PERCENT = 0.8
+TRAILING_PERCENT = 0.3
+
+SOCKET_INTERVAL = 2
