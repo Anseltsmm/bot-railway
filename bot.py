@@ -1077,4 +1077,26 @@ def run_bot():
 
                 if order:
 
-                    state["sym
+                    state["symbol"] = symbol
+
+                    state["side"] = best_coin["signal"]
+
+                    state["entry"] = best_coin["price"]
+
+                    state["qty"] = qty
+
+                    state["trade_count"] += 1
+
+                    console.print(
+                        "[green]POSITION OPENED[/green]"
+                    )
+
+            socketio.sleep(15)
+
+        except Exception as e:
+
+            console.print(
+                f"[red]MAIN LOOP ERROR:[/red] {e}"
+            )
+
+            socketio.sleep(5)
