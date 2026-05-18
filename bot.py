@@ -1,3 +1,5 @@
+# bot.py
+
 import eventlet
 eventlet.monkey_patch()
 
@@ -50,7 +52,7 @@ SL_ROI = float(
 )
 
 TRAIL_ROI = float(
-    os.getenv("TRAIL_ROI", 0.003)
+    os.getenv("TRAIL_ROI", 0.2)
 )
 
 USD_IDR = int(
@@ -94,7 +96,7 @@ SCAN_COINS = [
 console = Console()
 
 # =========================
-# BINANCE CLIENT
+# BINANCE
 # =========================
 client = Client(
     API_KEY,
@@ -123,53 +125,10 @@ state = {
 # =========================
 # WEB DATA
 # =========================
-web_data = {
-
-    "symbol": "-",
-    "signal": "NONE",
-    "price": 0,
-
-    "rsi": 0,
-    "volume_ratio": 0,
-    "atr_percent": 0,
-
-    "trend": "NONE",
-    "structure": "NONE",
-
-    "long_score": 0,
-    "short_score": 0,
-    "confidence": 0,
-
-    "mtf_bullish": 0,
-    "mtf_bearish": 0,
-    "mtf_total": 0,
-    "mtf_status": "NONE",
-
-    "mtf": {},
-
-    "position": "NONE",
-
-    "entry": 0,
-    "tp_price": 0,
-    "sl_price": 0,
-    "trail": 0,
-
-    "pnl": 0,
-    "pnl_idr": 0,
-
-    "balance": 0,
-
-    "trade_count": 0,
-    "winrate": 0,
-
-    "screener": [],
-
-    "chart_symbol": "BINANCE:BTCUSDT",
-    "chart_interval": "1"
-}
+web_data = {}
 
 # =========================
-# GET KLINES
+# KLINES
 # =========================
 def get_klines(symbol, interval):
 
@@ -206,10 +165,7 @@ def analyze_timeframe(symbol, timeframe):
 
     try:
 
-        df = get_klines(
-            symbol,
-            timeframe
-        )
+        df = get_klines(symbol, timeframe)
 
         close = df["close"]
 
@@ -254,7 +210,7 @@ def analyze_timeframe(symbol, timeframe):
         return "SIDEWAYS"
 
 # =========================
-# SIGNAL
+# SIGNAL ENGINE
 # =========================
 def signal(symbol):
 
@@ -388,14 +344,14 @@ def signal(symbol):
         if rsi.iloc[-1] < 50:
             short_score += 25
 
-        if good_volume:
-            long_score += 25
-            short_score += 25
-
         if bullish_reject:
             long_score += 25
 
         if bearish_reject:
+            short_score += 25
+
+        if good_volume:
+            long_score += 25
             short_score += 25
 
         long_score += (
@@ -411,25 +367,35 @@ def signal(symbol):
             short_score
         )
 
-        if confidence > 100:
-            confidence = 100
+        confidence = min(
+            confidence,
+            100
+        )
 
         sig = "NONE"
 
         if (
             long_score >= 85
-            and mtf_bullish >= 5
-            and not_too_far
-            and atr_percent > 0.05
+            and
+            mtf_bullish >= 5
+            and
+            not_too_far
+            and
+            atr_percent > 0.05
         ):
+
             sig = "LONG"
 
         elif (
             short_score >= 85
-            and mtf_bearish >= 5
-            and not_too_far
-            and atr_percent > 0.05
+            and
+            mtf_bearish >= 5
+            and
+            not_too_far
+            and
+            atr_percent > 0.05
         ):
+
             sig = "SHORT"
 
         return {
@@ -469,7 +435,7 @@ def signal(symbol):
     except Exception as e:
 
         console.print(
-            f"[red]SIGNAL ERROR {symbol}:[/red] {e}"
+            f"[red]SIGNAL ERROR:[/red] {e}"
         )
 
         return None
@@ -545,11 +511,8 @@ def get_usdt_balance():
                     b["availableBalance"]
                 )
 
-    except Exception as e:
-
-        console.print(
-            f"[red]BALANCE ERROR:[/red] {e}"
-        )
+    except:
+        return 0
 
     return 0
 
@@ -574,32 +537,6 @@ def get_lot_filters(symbol):
                     )
 
     return 0.001, 0.001
-
-# =========================
-# PRICE PRECISION
-# =========================
-def get_price_precision(symbol):
-
-    info = client.futures_exchange_info()
-
-    for s in info["symbols"]:
-
-        if s["symbol"] == symbol:
-
-            return s["pricePrecision"]
-
-    return 4
-
-# =========================
-# FORMAT PRICE
-# =========================
-def format_price(symbol, price):
-
-    precision = get_price_precision(symbol)
-
-    return float(
-        f"{price:.{precision}f}"
-    )
 
 # =========================
 # SAFE QTY
@@ -632,11 +569,8 @@ def set_leverage(symbol):
             leverage=LEVERAGE
         )
 
-    except Exception as e:
-
-        console.print(
-            f"[red]LEVERAGE ERROR:[/red] {e}"
-        )
+    except:
+        pass
 
     try:
 
@@ -645,16 +579,11 @@ def set_leverage(symbol):
             marginType=MARGIN_TYPE
         )
 
-    except Exception as e:
-
-        if "No need to change margin type" not in str(e):
-
-            console.print(
-                f"[red]MARGIN ERROR:[/red] {e}"
-            )
+    except:
+        pass
 
 # =========================
-# CANCEL ORDERS
+# CANCEL
 # =========================
 def cancel_open_orders(symbol):
 
@@ -664,25 +593,58 @@ def cancel_open_orders(symbol):
             symbol=symbol
         )
 
+    except:
+        pass
+
+# =========================
+# SYNC EXIT ORDERS
+# =========================
+def sync_exit_orders(symbol):
+
+    try:
+
+        orders = client.futures_get_open_orders(
+            symbol=symbol
+        )
+
+        tp_price = 0
+        sl_price = 0
+        trail_rate = 0
+
+        for o in orders:
+
+            order_type = o["type"]
+
+            if order_type == "TAKE_PROFIT_MARKET":
+
+                tp_price = float(
+                    o["stopPrice"]
+                )
+
+            elif order_type == "STOP_MARKET":
+
+                sl_price = float(
+                    o["stopPrice"]
+                )
+
+            elif order_type == "TRAILING_STOP_MARKET":
+
+                trail_rate = float(
+                    o.get(
+                        "callbackRate",
+                        0
+                    )
+                )
+
+        state["tp_price"] = tp_price
+        state["sl_price"] = sl_price
+        state["trail"] = trail_rate
+
     except Exception as e:
 
         console.print(
-            f"[red]CANCEL ERROR:[/red] {e}"
+            f"[red]SYNC EXIT ERROR:[/red] {e}"
         )
-
-# =========================
-# PNL
-# =========================
-def unrealized_pnl(symbol):
-
-    pos = get_position(symbol)
-
-    if not pos:
-        return 0
-
-    return float(
-        pos["unRealizedProfit"]
-    )
 
 # =========================
 # OPEN POSITION
@@ -692,11 +654,6 @@ def open_position(symbol, side, qty):
     try:
 
         if get_any_open_position():
-
-            console.print(
-                "[yellow]GLOBAL POSITION EXISTS[/yellow]"
-            )
-
             return None
 
         set_leverage(symbol)
@@ -718,31 +675,16 @@ def open_position(symbol, side, qty):
             quantity=qty
         )
 
-        socketio.sleep(2)
-
         pos = get_position(symbol)
 
         if not pos:
-
-            console.print(
-                "[red]FAILED GET POSITION[/red]"
-            )
-
             return None
-
-        amt = float(
-            pos["positionAmt"]
-        )
 
         entry_price = float(
             pos["entryPrice"]
         )
 
-        if amt > 0:
-
-            real_side = "LONG"
-
-            stop_side = SIDE_SELL
+        if side == "LONG":
 
             tp_price = (
                 entry_price *
@@ -754,16 +696,9 @@ def open_position(symbol, side, qty):
                 (1 - SL_ROI)
             )
 
-            activation_price = (
-                entry_price *
-                (1 + 0.003)
-            )
+            stop_side = SIDE_SELL
 
         else:
-
-            real_side = "SHORT"
-
-            stop_side = SIDE_BUY
 
             tp_price = (
                 entry_price *
@@ -775,36 +710,9 @@ def open_position(symbol, side, qty):
                 (1 + SL_ROI)
             )
 
-            activation_price = (
-                entry_price *
-                (1 - 0.003)
-            )
+            stop_side = SIDE_BUY
 
-        tp_price = format_price(
-            symbol,
-            tp_price
-        )
-
-        sl_price = format_price(
-            symbol,
-            sl_price
-        )
-
-        activation_price = format_price(
-            symbol,
-            activation_price
-        )
-
-        state["symbol"] = symbol
-        state["side"] = real_side
-        state["entry"] = entry_price
-        state["qty"] = abs(amt)
-
-        state["tp_price"] = tp_price
-        state["sl_price"] = sl_price
-        state["trail"] = TRAIL_ROI * 100
-
-        # TAKE PROFIT
+        # TP
         client.futures_create_order(
 
             symbol=symbol,
@@ -813,7 +721,10 @@ def open_position(symbol, side, qty):
 
             type="TAKE_PROFIT_MARKET",
 
-            stopPrice=tp_price,
+            stopPrice=round(
+                tp_price,
+                6
+            ),
 
             closePosition=True,
 
@@ -822,7 +733,7 @@ def open_position(symbol, side, qty):
             priceProtect=True
         )
 
-        # STOP LOSS
+        # SL
         client.futures_create_order(
 
             symbol=symbol,
@@ -831,7 +742,10 @@ def open_position(symbol, side, qty):
 
             type="STOP_MARKET",
 
-            stopPrice=sl_price,
+            stopPrice=round(
+                sl_price,
+                6
+            ),
 
             closePosition=True,
 
@@ -840,15 +754,7 @@ def open_position(symbol, side, qty):
             priceProtect=True
         )
 
-        # TRAILING STOP
-        callback_rate = TRAIL_ROI * 100
-
-        if callback_rate < 0.1:
-            callback_rate = 0.1
-
-        if callback_rate > 5:
-            callback_rate = 5
-
+        # TRAILING
         client.futures_create_order(
 
             symbol=symbol,
@@ -857,39 +763,22 @@ def open_position(symbol, side, qty):
 
             type="TRAILING_STOP_MARKET",
 
-            callbackRate=round(
-                callback_rate,
-                2
-            ),
+            callbackRate=TRAIL_ROI,
 
-            activationPrice=activation_price,
+            quantity=qty,
 
-            quantity=abs(amt),
-
-            workingType="MARK_PRICE",
-
-            priceProtect=True
+            workingType="MARK_PRICE"
         )
 
-        console.print(
-            f"[green]ENTRY {real_side} {symbol} SUCCESS[/green]"
-        )
+        state["symbol"] = symbol
+        state["side"] = side
+        state["entry"] = entry_price
+        state["qty"] = qty
+
+        sync_exit_orders(symbol)
 
         console.print(
-            f"[cyan]ENTRY:[/cyan] {entry_price}"
-        )
-
-        console.print(
-            f"[green]TP:[/green] {tp_price}"
-        )
-
-        console.print(
-            f"[red]SL:[/red] {sl_price}"
-        )
-
-        console.print(
-            f"[yellow]TRAIL:[/yellow] "
-            f"{callback_rate}%"
+            f"[green]ENTRY {side} {symbol} SUCCESS[/green]"
         )
 
         return order
@@ -900,7 +789,21 @@ def open_position(symbol, side, qty):
             f"[red]ENTRY ERROR:[/red] {e}"
         )
 
-        return None
+    return None
+
+# =========================
+# PNL
+# =========================
+def unrealized_pnl(symbol):
+
+    pos = get_position(symbol)
+
+    if not pos:
+        return 0
+
+    return float(
+        pos["unRealizedProfit"]
+    )
 
 # =========================
 # DASHBOARD
@@ -915,16 +818,7 @@ def update_dashboard(data, screener):
             state["symbol"]
         )
 
-    usdt_balance = get_usdt_balance()
-
-    winrate = 0
-
-    if state["trade_count"] > 0:
-
-        winrate = (
-            state["win"] /
-            state["trade_count"]
-        ) * 100
+    balance = get_usdt_balance()
 
     web_data.update({
 
@@ -933,13 +827,12 @@ def update_dashboard(data, screener):
         "price": data["price"],
 
         "rsi": data["rsi"],
-        "volume_ratio": data["volume_ratio"],
-        "atr_percent": data["atr_percent"],
 
         "trend": data["trend"],
 
         "long_score": data["long_score"],
         "short_score": data["short_score"],
+
         "confidence": data["confidence"],
 
         "mtf_bullish": data["mtf_bullish"],
@@ -955,29 +848,20 @@ def update_dashboard(data, screener):
         "entry": state["entry"],
 
         "tp_price": state["tp_price"],
-
         "sl_price": state["sl_price"],
-
         "trail": state["trail"],
 
         "pnl": pnl,
 
         "pnl_idr": pnl * USD_IDR,
 
-        "balance": usdt_balance,
+        "balance": balance,
 
         "trade_count": state["trade_count"],
 
-        "winrate": round(
-            winrate,
-            2
-        ),
+        "winrate": 0,
 
-        "screener": screener,
-
-        "chart_symbol": f"BINANCE:{data['symbol']}",
-
-        "chart_interval": "1"
+        "screener": screener
     })
 
     socketio.emit(
@@ -993,7 +877,7 @@ def terminal_dashboard(data):
     console.clear()
 
     table = Table(
-        title="AI MULTI TF BOT",
+        title="AI BOT",
         box=box.DOUBLE_EDGE
     )
 
@@ -1010,86 +894,13 @@ def terminal_dashboard(data):
     console.print(table)
 
 # =========================
-# RESTORE POSITION
-# =========================
-def restore_position_state():
-
-    try:
-
-        existing_position = get_any_open_position()
-
-        if not existing_position:
-
-            console.print(
-                "[cyan]NO ACTIVE POSITION[/cyan]"
-            )
-
-            return
-
-        symbol = existing_position["symbol"]
-
-        amt = float(
-            existing_position["positionAmt"]
-        )
-
-        entry_price = float(
-            existing_position["entryPrice"]
-        )
-
-        state["symbol"] = symbol
-        state["entry"] = entry_price
-        state["qty"] = abs(amt)
-
-        if amt > 0:
-
-            state["side"] = "LONG"
-
-            state["tp_price"] = (
-                entry_price *
-                (1 + TP_ROI)
-            )
-
-            state["sl_price"] = (
-                entry_price *
-                (1 - SL_ROI)
-            )
-
-        else:
-
-            state["side"] = "SHORT"
-
-            state["tp_price"] = (
-                entry_price *
-                (1 - TP_ROI)
-            )
-
-            state["sl_price"] = (
-                entry_price *
-                (1 + SL_ROI)
-            )
-
-        console.print(
-            f"[green]RESTORED POSITION:[/green] "
-            f"{state['side']} "
-            f"{symbol}"
-        )
-
-    except Exception as e:
-
-        console.print(
-            f"[red]RESTORE ERROR:[/red] {e}"
-        )
-
-# =========================
-# RUN BOT
+# RUN
 # =========================
 def run_bot():
 
     console.print(
-        "[green]BOT STARTED SUCCESSFULLY[/green]"
+        "[green]BOT STARTED[/green]"
     )
-
-    restore_position_state()
 
     while True:
 
@@ -1129,11 +940,48 @@ def run_bot():
 
                 if (
                     data["signal"] != "NONE"
-                    and score > best_score
+                    and
+                    score > best_score
                 ):
 
                     best_score = score
                     best_coin = data
+
+            existing_position = get_any_open_position()
+
+            if existing_position:
+
+                symbol = existing_position["symbol"]
+
+                amt = float(
+                    existing_position["positionAmt"]
+                )
+
+                entry = float(
+                    existing_position["entryPrice"]
+                )
+
+                state["symbol"] = symbol
+                state["entry"] = entry
+                state["qty"] = abs(amt)
+
+                sync_exit_orders(symbol)
+
+                if amt > 0:
+                    state["side"] = "LONG"
+                else:
+                    state["side"] = "SHORT"
+
+            else:
+
+                state["symbol"] = None
+                state["side"] = None
+                state["entry"] = 0
+                state["qty"] = 0
+
+                state["tp_price"] = 0
+                state["sl_price"] = 0
+                state["trail"] = 0
 
             if best_coin:
 
@@ -1146,123 +994,53 @@ def run_bot():
                     best_coin
                 )
 
-            existing_position = get_any_open_position()
+            if (
+                not existing_position
+                and
+                best_coin
+            ):
 
-            if existing_position:
-
-                symbol = existing_position["symbol"]
-
-                amt = float(
-                    existing_position["positionAmt"]
-                )
-
-                entry_price = float(
-                    existing_position["entryPrice"]
-                )
-
-                state["symbol"] = symbol
-                state["entry"] = entry_price
-                state["qty"] = abs(amt)
-
-                if amt > 0:
-
-                    state["side"] = "LONG"
-
-                else:
-
-                    state["side"] = "SHORT"
-
-                console.print(
-                    f"[yellow]ACTIVE POSITION:[/yellow] "
-                    f"{state['side']} "
-                    f"{symbol}"
-                )
-
-                socketio.sleep(10)
-
-                continue
-
-            else:
-
-                state["symbol"] = None
-                state["side"] = None
-                state["entry"] = 0
-                state["qty"] = 0
-
-            if best_coin:
-
-                symbol = best_coin["symbol"]
-
-                if best_coin["signal"] not in [
+                if best_coin["signal"] in [
                     "LONG",
                     "SHORT"
                 ]:
 
-                    socketio.sleep(10)
-                    continue
+                    balance = get_usdt_balance()
 
-                available_balance = get_usdt_balance()
+                    if balance >= ORDER_USDT:
 
-                if available_balance < ORDER_USDT:
+                        step, min_qty = get_lot_filters(
+                            best_coin["symbol"]
+                        )
 
-                    console.print(
-                        "[red]INSUFFICIENT BALANCE[/red]"
-                    )
+                        notional = (
+                            ORDER_USDT *
+                            LEVERAGE
+                        )
 
-                    socketio.sleep(10)
+                        qty = (
+                            notional /
+                            best_coin["price"]
+                        )
 
-                    continue
+                        qty = qty * 0.98
 
-                step, min_qty = get_lot_filters(
-                    symbol
-                )
+                        qty = safe_qty(
+                            qty,
+                            step,
+                            min_qty
+                        )
 
-                notional = (
-                    ORDER_USDT *
-                    LEVERAGE
-                )
+                        open_position(
 
-                qty = (
-                    notional /
-                    best_coin["price"]
-                )
+                            best_coin["symbol"],
 
-                qty = qty * 0.98
+                            best_coin["signal"],
 
-                qty = safe_qty(
-                    qty,
-                    step,
-                    min_qty
-                )
+                            qty
+                        )
 
-                if qty <= 0:
-
-                    socketio.sleep(10)
-
-                    continue
-
-                console.print(
-                    f"[cyan]TRY ENTRY "
-                    f"{best_coin['signal']} "
-                    f"{symbol}[/cyan]"
-                )
-
-                order = open_position(
-
-                    symbol,
-
-                    best_coin["signal"],
-
-                    qty
-                )
-
-                if order:
-
-                    state["trade_count"] += 1
-
-                    console.print(
-                        "[green]POSITION OPENED[/green]"
-                    )
+                        state["trade_count"] += 1
 
             socketio.sleep(15)
 
