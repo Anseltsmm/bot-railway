@@ -1,75 +1,28 @@
-# =========================
-# app.py
-# =========================
-
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template
 
 from extensions import socketio
 
-from bot import run_bot, web_data
+from bot import run_bot
 
-# =========================
-# FLASK
-# =========================
 app = Flask(__name__)
 
-socketio.init_app(
 
-    app,
-
-    cors_allowed_origins="*",
-
-    async_mode="eventlet"
-)
-
-# =========================
-# ROUTES
-# =========================
-@app.route("/")
+@app.route('/')
 def home():
-    return render_template("dashboard.html")
+    return render_template('dashboard.html')
 
-@app.route("/api/data")
-def api_data():
-    return jsonify(web_data)
 
-# =========================
-# SOCKET LOOP
-# =========================
-def socket_sender():
+if __name__ == '__main__':
 
-    while True:
+    socketio.init_app(app)
 
-        socketio.emit(
-            "update",
-            web_data
-        )
-
-        socketio.sleep(2)
-
-# =========================
-# START
-# =========================
-if __name__ == "__main__":
-
-    socketio.start_background_task(
-        socket_sender
-    )
-
-    socketio.start_background_task(
-        run_bot
-    )
+    socketio.start_background_task(run_bot)
 
     socketio.run(
-
         app,
-
-        host="0.0.0.0",
-
-        port=8080,
-
-        debug=False
+        host='0.0.0.0',
+        port=5000
     )
