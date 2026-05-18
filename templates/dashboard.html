@@ -244,6 +244,10 @@ LIVE AI ENGINE
 
 </div>
 
+<!-- ===================== -->
+<!-- MAIN GRID -->
+<!-- ===================== -->
+
 <div class="grid">
 
 <div class="card">
@@ -332,6 +336,16 @@ LIVE AI ENGINE
 </div>
 
 <div class="card">
+<div class="label">MTF BULLISH</div>
+<div class="value green" id="bullish_tf">0</div>
+</div>
+
+<div class="card">
+<div class="label">MTF BEARISH</div>
+<div class="value red" id="bearish_tf">0</div>
+</div>
+
+<div class="card">
 <div class="label">WINRATE</div>
 <div class="value yellow" id="winrate">0%</div>
 </div>
@@ -343,6 +357,66 @@ LIVE AI ENGINE
 
 </div>
 
+<!-- ===================== -->
+<!-- MULTI TIMEFRAME -->
+<!-- ===================== -->
+
+<div class="chart-box">
+
+<div class="chart-title">
+🧠 MULTI TIME FRAME ANALYSIS
+</div>
+
+<div class="timeframe-grid">
+
+<div class="tf-card">
+<div class="tf-title">1M</div>
+<div class="tf-value" id="tf_1m">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">5M</div>
+<div class="tf-value" id="tf_5m">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">15M</div>
+<div class="tf-value" id="tf_15m">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">1H</div>
+<div class="tf-value" id="tf_1h">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">2H</div>
+<div class="tf-value" id="tf_2h">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">4H</div>
+<div class="tf-value" id="tf_4h">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">1D</div>
+<div class="tf-value" id="tf_1d">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">1W</div>
+<div class="tf-value" id="tf_1w">-</div>
+</div>
+
+</div>
+
+</div>
+
+<!-- ===================== -->
+<!-- REALTIME PNL -->
+<!-- ===================== -->
+
 <div class="chart-box">
 
 <div class="chart-title">
@@ -352,6 +426,10 @@ LIVE AI ENGINE
 <canvas id="pnlChart"></canvas>
 
 </div>
+
+<!-- ===================== -->
+<!-- MARKET SCREENER -->
+<!-- ===================== -->
 
 <div class="screener-box">
 
@@ -386,6 +464,10 @@ Waiting market scan...
 
 </div>
 
+<!-- ===================== -->
+<!-- LIVE CHART -->
+<!-- ===================== -->
+
 <div class="chart-box">
 
 <div class="chart-title">
@@ -402,7 +484,10 @@ AI MULTI TIME FRAME • SMART SCALPING • AUTO SCREENER
 
 <script>
 
-const socket = io();
+const socket = io({
+transports:['websocket'],
+reconnection:true
+});
 
 let currentChartSymbol = "BTCUSDT";
 
@@ -413,8 +498,10 @@ const chart = new Chart(
 document.getElementById('pnlChart'),
 {
 type:'line',
+
 data:{
 labels:labels,
+
 datasets:[{
 label:'Realtime PNL',
 data:pnlData,
@@ -422,8 +509,30 @@ borderWidth:2,
 tension:0.3
 }]
 },
+
 options:{
-responsive:true
+responsive:true,
+
+plugins:{
+legend:{
+labels:{
+color:'white'
+}
+}
+},
+
+scales:{
+x:{
+ticks:{
+color:'white'
+}
+},
+y:{
+ticks:{
+color:'white'
+}
+}
+}
 }
 }
 );
@@ -443,6 +552,35 @@ const el = document.getElementById(id);
 
 if(el){
 el.innerText = val;
+}
+}
+
+function setTF(id,val){
+
+const el = document.getElementById(id);
+
+if(!el) return;
+
+el.innerText = val || "-";
+
+el.classList.remove(
+'green',
+'red',
+'yellow'
+);
+
+if(val === "BULLISH"){
+
+el.classList.add('green');
+
+}else if(val === "BEARISH"){
+
+el.classList.add('red');
+
+}else{
+
+el.classList.add('yellow');
+
 }
 }
 
@@ -489,11 +627,26 @@ container_id:"tradingview_chart"
 
 loadTradingView("BTCUSDT");
 
+socket.on('connect', () => {
+
+console.log("Socket Connected");
+
+});
+
+socket.on('disconnect', () => {
+
+console.log("Socket Disconnected");
+
+});
+
 socket.on('update', function(data){
 
-console.log(data);
+console.log("SOCKET DATA:", data);
 
-setText('symbol', data.symbol || '-');
+setText(
+'symbol',
+data.symbol || '-'
+);
 
 setText(
 'price',
@@ -579,6 +732,16 @@ setText(
 );
 
 setText(
+'bullish_tf',
+data.mtf_bullish || 0
+);
+
+setText(
+'bearish_tf',
+data.mtf_bearish || 0
+);
+
+setText(
 'trade_count',
 data.trade_count || 0
 );
@@ -598,19 +761,56 @@ signalEl.className =
 'value';
 
 if(data.signal === 'LONG'){
+
 signalEl.classList.add(
 'signal-long'
 );
+
 }
 else if(data.signal === 'SHORT'){
+
 signalEl.classList.add(
 'signal-short'
 );
+
 }
 else{
+
 signalEl.classList.add(
 'signal-none'
 );
+
+}
+
+const pnlEl =
+document.getElementById('pnl');
+
+pnlEl.classList.remove(
+'green',
+'red'
+);
+
+if(Number(data.pnl || 0) >= 0){
+
+pnlEl.classList.add('green');
+
+}else{
+
+pnlEl.classList.add('red');
+
+}
+
+if(data.mtf){
+
+setTF('tf_1m', data.mtf["1m"]);
+setTF('tf_5m', data.mtf["5m"]);
+setTF('tf_15m', data.mtf["15m"]);
+setTF('tf_1h', data.mtf["1h"]);
+setTF('tf_2h', data.mtf["2h"]);
+setTF('tf_4h', data.mtf["4h"]);
+setTF('tf_1d', data.mtf["1d"]);
+setTF('tf_1w', data.mtf["1w"]);
+
 }
 
 labels.push(
@@ -628,7 +828,7 @@ pnlData.shift();
 
 }
 
-chart.update();
+chart.update('none');
 
 if(data.symbol){
 
