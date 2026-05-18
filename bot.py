@@ -50,12 +50,26 @@ MARGIN_TYPE = os.getenv(
 )
 
 # =========================
+# MULTI TIMEFRAME
+# =========================
+TIMEFRAMES = [
+    "1m",
+    "5m",
+    "15m",
+    "1h",
+    "2h",
+    "4h",
+    "1d",
+    "1w"
+]
+
+# =========================
 # COIN SCREENER
 # =========================
 SCAN_COINS = [
 
-    "BEATUSDT",
-    "HUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
     "SOLUSDT",
     "XRPUSDT",
     "DOGEUSDT",
@@ -63,8 +77,11 @@ SCAN_COINS = [
     "ADAUSDT",
     "LINKUSDT",
     "AVAXUSDT",
-    "LTCUSDT"
-
+    "LTCUSDT",
+    "DOTUSDT",
+    "1000PEPEUSDT",
+    "WIFUSDT",
+    "NEARUSDT"
 ]
 
 console = Console()
@@ -143,6 +160,14 @@ web_data = {
 
     "short_score": 0,
 
+    "mtf_bullish": 0,
+
+    "mtf_bearish": 0,
+
+    "mtf_total": 0,
+
+    "mtf_status": "NEUTRAL",
+
     "position": "NONE",
 
     "entry": 0,
@@ -178,12 +203,12 @@ def api_data():
 # =========================
 # GET KLINES
 # =========================
-def get_klines(symbol):
+def get_klines(symbol, interval):
 
     df = pd.DataFrame(
         client.futures_klines(
             symbol=symbol,
-            interval=INTERVAL,
+            interval=interval,
             limit=300
         )
     )
@@ -200,9 +225,62 @@ def get_klines(symbol):
     ]
 
     for col in df.columns[1:]:
+
         df[col] = df[col].astype(float)
 
     return df
+
+# =========================
+# MTF ANALYSIS
+# =========================
+def analyze_timeframe(symbol, timeframe):
+
+    try:
+
+        df = get_klines(
+            symbol,
+            timeframe
+        )
+
+        close = df["close"]
+
+        ema21 = EMAIndicator(
+            close,
+            21
+        ).ema_indicator()
+
+        ema200 = EMAIndicator(
+            close,
+            200
+        ).ema_indicator()
+
+        rsi = RSIIndicator(
+            close,
+            14
+        ).rsi()
+
+        bullish = (
+            ema21.iloc[-1] >
+            ema200.iloc[-1]
+            and rsi.iloc[-1] > 50
+        )
+
+        bearish = (
+            ema21.iloc[-1] <
+            ema200.iloc[-1]
+            and rsi.iloc[-1] < 50
+        )
+
+        if bullish:
+            return "BULLISH"
+
+        if bearish:
+            return "BEARISH"
+
+        return "SIDEWAYS"
+
+    except:
+        return "SIDEWAYS"
 
 # =========================
 # SIGNAL ENGINE
@@ -211,7 +289,10 @@ def signal(symbol):
 
     try:
 
-        df = get_klines(symbol)
+        df = get_klines(
+            symbol,
+            INTERVAL
+        )
 
         close = df["close"]
         high = df["high"]
@@ -219,11 +300,25 @@ def signal(symbol):
         openp = df["open"]
         volume = df["volume"]
 
-        ema9 = EMAIndicator(close, 9).ema_indicator()
-        ema21 = EMAIndicator(close, 21).ema_indicator()
-        ema200 = EMAIndicator(close, 200).ema_indicator()
+        ema9 = EMAIndicator(
+            close,
+            9
+        ).ema_indicator()
 
-        rsi = RSIIndicator(close, 14).rsi()
+        ema21 = EMAIndicator(
+            close,
+            21
+        ).ema_indicator()
+
+        ema200 = EMAIndicator(
+            close,
+            200
+        ).ema_indicator()
+
+        rsi = RSIIndicator(
+            close,
+            14
+        ).rsi()
 
         atr = AverageTrueRange(
             high,
@@ -232,7 +327,9 @@ def signal(symbol):
             14
         ).average_true_range()
 
-        avg_volume = volume.rolling(20).mean()
+        avg_volume = (
+            volume.rolling(20).mean()
+        )
 
         volume_ratio = (
             volume.iloc[-1] /
@@ -298,6 +395,35 @@ def signal(symbol):
             volume_ratio > 1.1
         )
 
+        # =========================
+        # MULTI TIMEFRAME CHECK
+        # =========================
+        mtf_bullish = 0
+        mtf_bearish = 0
+
+        for tf in TIMEFRAMES:
+
+            result = analyze_timeframe(
+                symbol,
+                tf
+            )
+
+            if result == "BULLISH":
+                mtf_bullish += 1
+
+            elif result == "BEARISH":
+                mtf_bearish += 1
+
+        mtf_total = len(TIMEFRAMES)
+
+        mtf_status = "NEUTRAL"
+
+        if mtf_bullish > mtf_bearish:
+            mtf_status = "BULLISH"
+
+        elif mtf_bearish > mtf_bullish:
+            mtf_status = "BEARISH"
+
         long_score = 0
         short_score = 0
 
@@ -323,20 +449,39 @@ def signal(symbol):
         if bearish_reject:
             short_score += 25
 
+        # =========================
+        # MTF BOOST SCORE
+        # =========================
+        long_score += (
+            mtf_bullish * 5
+        )
+
+        short_score += (
+            mtf_bearish * 5
+        )
+
         sig = "NONE"
 
         if (
-            long_score >= 75
+
+            long_score >= 85
             and not_too_far
             and atr_percent > 0.05
+            and mtf_bullish >= 5
+
         ):
+
             sig = "LONG"
 
         elif (
-            short_score >= 75
+
+            short_score >= 85
             and not_too_far
             and atr_percent > 0.05
+            and mtf_bearish >= 5
+
         ):
+
             sig = "SHORT"
 
         return {
@@ -359,7 +504,15 @@ def signal(symbol):
 
             "long_score": long_score,
 
-            "short_score": short_score
+            "short_score": short_score,
+
+            "mtf_bullish": mtf_bullish,
+
+            "mtf_bearish": mtf_bearish,
+
+            "mtf_total": mtf_total,
+
+            "mtf_status": mtf_status
         }
 
     except Exception as e:
@@ -395,9 +548,14 @@ def scan_market():
         )
 
         console.print(
+
             f"{coin} | "
             f"{data['signal']} | "
-            f"SCORE {score}"
+            f"LONG {data['long_score']} | "
+            f"SHORT {data['short_score']} | "
+            f"MTF {data['mtf_status']} | "
+            f"BULL {data['mtf_bullish']} | "
+            f"BEAR {data['mtf_bearish']}"
         )
 
         if (
@@ -546,7 +704,6 @@ def open_position(symbol, side, qty):
         state["sl_price"] = sl_price
         state["trail"] = TRAIL_ROI
 
-        # TP
         client.futures_create_order(
 
             symbol=symbol,
@@ -560,7 +717,6 @@ def open_position(symbol, side, qty):
             closePosition=True
         )
 
-        # SL
         client.futures_create_order(
 
             symbol=symbol,
@@ -596,6 +752,7 @@ def update_dashboard(data):
     pnl = 0
 
     if state["symbol"]:
+
         pnl = unrealized_pnl(
             state["symbol"]
         )
@@ -649,6 +806,14 @@ def update_dashboard(data):
 
         "short_score": data["short_score"],
 
+        "mtf_bullish": data["mtf_bullish"],
+
+        "mtf_bearish": data["mtf_bearish"],
+
+        "mtf_total": data["mtf_total"],
+
+        "mtf_status": data["mtf_status"],
+
         "position": (
             state["side"]
             or "NONE"
@@ -677,6 +842,88 @@ def update_dashboard(data):
         "update",
         web_data
     )
+
+# =========================
+# TERMINAL DASHBOARD
+# =========================
+def terminal_dashboard(data):
+
+    console.clear()
+
+    table = Table(
+        title="MULTI TF MARKET BOT",
+        box=box.DOUBLE_EDGE
+    )
+
+    table.add_column("Metric")
+    table.add_column("Value")
+
+    table.add_row(
+        "Symbol",
+        str(data["symbol"])
+    )
+
+    table.add_row(
+        "Signal",
+        str(data["signal"])
+    )
+
+    table.add_row(
+        "Trend",
+        str(data["trend"])
+    )
+
+    table.add_row(
+        "Structure",
+        str(data["structure"])
+    )
+
+    table.add_row(
+        "Price",
+        f'{data["price"]:.4f}'
+    )
+
+    table.add_row(
+        "RSI",
+        f'{data["rsi"]:.2f}'
+    )
+
+    table.add_row(
+        "Long Score",
+        str(data["long_score"])
+    )
+
+    table.add_row(
+        "Short Score",
+        str(data["short_score"])
+    )
+
+    table.add_row(
+        "MTF Bullish",
+        str(data["mtf_bullish"])
+    )
+
+    table.add_row(
+        "MTF Bearish",
+        str(data["mtf_bearish"])
+    )
+
+    table.add_row(
+        "MTF Status",
+        str(data["mtf_status"])
+    )
+
+    table.add_row(
+        "Position",
+        str(state["side"])
+    )
+
+    table.add_row(
+        "PNL",
+        f'{web_data["pnl"]:.4f}'
+    )
+
+    console.print(table)
 
 # =========================
 # MAIN LOOP
@@ -716,6 +963,8 @@ def run_bot():
                 continue
 
             update_dashboard(best)
+
+            terminal_dashboard(best)
 
             symbol = best["symbol"]
 
@@ -783,4 +1032,4 @@ if __name__ == "__main__":
         port=8080,
 
         debug=False
-        )
+)
