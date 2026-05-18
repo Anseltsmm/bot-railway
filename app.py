@@ -63,40 +63,49 @@ def trading_loop():
             update_pnl()
 
             # =========================
-            # ENTRY
+            # ENTRY LOGIC
             # =========================
+
             now = time.time()
 
-cooldown_passed = (
-    now -
-    bot_state["last_trade_time"]
-) > TRADE_COOLDOWN
+            cooldown_passed = (
+                now - bot_state["last_trade_time"]
+            ) > TRADE_COOLDOWN
+
+            # =========================
+            # LONG ENTRY
+            # =========================
 
             if (
-    result["signal"] == "LONG"
-    and
-    not has_open_position(SYMBOL)
-    and
-    cooldown_passed
-):
+                result["signal"] == "LONG"
+                and
+                not has_open_position(SYMBOL)
+                and
+                cooldown_passed
+            ):
 
-    place_long()
+                place_long()
 
-    bot_state["last_trade_time"] = now
+                bot_state["last_trade_time"] = now
 
-elif (
-    result["signal"] == "SHORT"
-    and
-    not has_open_position(SYMBOL)
-    and
-    cooldown_passed
-):
-
-    place_short()
-
-    bot_state["last_trade_time"] = now
             # =========================
-            # SOCKET
+            # SHORT ENTRY
+            # =========================
+
+            elif (
+                result["signal"] == "SHORT"
+                and
+                not has_open_position(SYMBOL)
+                and
+                cooldown_passed
+            ):
+
+                place_short()
+
+                bot_state["last_trade_time"] = now
+
+            # =========================
+            # SOCKET UPDATE
             # =========================
 
             socketio.emit(
