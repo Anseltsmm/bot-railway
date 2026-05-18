@@ -244,193 +244,114 @@ LIVE AI ENGINE
 
 </div>
 
-<!-- MAIN GRID -->
-
 <div class="grid">
 
 <div class="card">
 <div class="label">ACTIVE PAIR</div>
-<div class="value yellow"
-id="symbol">-</div>
+<div class="value yellow" id="symbol">-</div>
 </div>
 
 <div class="card">
 <div class="label">SIGNAL</div>
-<div class="value signal-none"
-id="signal">NONE</div>
+<div class="value signal-none" id="signal">NONE</div>
 </div>
 
 <div class="card">
 <div class="label">PRICE</div>
-<div class="value"
-id="price">0</div>
+<div class="value" id="price">0</div>
 </div>
 
 <div class="card">
 <div class="label">BALANCE</div>
-<div class="value green"
-id="balance">$0</div>
+<div class="value green" id="balance">$0</div>
 </div>
 
 <div class="card">
 <div class="label">POSITION</div>
-<div class="value blue"
-id="position">NONE</div>
+<div class="value blue" id="position">NONE</div>
 </div>
 
 <div class="card">
 <div class="label">ENTRY PRICE</div>
-<div class="value"
-id="entry">0</div>
+<div class="value" id="entry">-</div>
 </div>
 
 <div class="card">
 <div class="label">STOP LOSS</div>
-<div class="value red"
-id="sl">0</div>
+<div class="value red" id="sl">-</div>
 </div>
 
 <div class="card">
 <div class="label">TAKE PROFIT</div>
-<div class="value green"
-id="tp">0</div>
+<div class="value green" id="tp">-</div>
 </div>
 
 <div class="card">
 <div class="label">TRAILING STOP</div>
-<div class="value orange"
-id="trail">0%</div>
+<div class="value orange" id="trail">-</div>
 </div>
 
 <div class="card">
 <div class="label">UNREALIZED PNL</div>
-<div class="value"
-id="pnl">0</div>
+<div class="value" id="pnl">0</div>
 </div>
 
 <div class="card">
 <div class="label">UPNL IDR</div>
-<div class="value"
-id="pnl_idr">0</div>
+<div class="value" id="pnl_idr">0</div>
 </div>
 
 <div class="card">
 <div class="label">RSI</div>
-<div class="value purple"
-id="rsi">0</div>
+<div class="value purple" id="rsi">0</div>
 </div>
 
 <div class="card">
 <div class="label">MARKET TREND</div>
-<div class="value"
-id="market_trend">-</div>
+<div class="value" id="market_trend">-</div>
 </div>
 
 <div class="card">
 <div class="label">STRUCTURE</div>
-<div class="value"
-id="market_structure">-</div>
+<div class="value" id="market_structure">-</div>
 </div>
 
 <div class="card">
 <div class="label">LONG SCORE</div>
-<div class="value green"
-id="long_score">0</div>
+<div class="value green" id="long_score">0</div>
 </div>
 
 <div class="card">
 <div class="label">SHORT SCORE</div>
-<div class="value red"
-id="short_score">0</div>
+<div class="value red" id="short_score">0</div>
 </div>
 
 <div class="card">
 <div class="label">AI CONFIDENCE</div>
-<div class="value yellow"
-id="confidence">0%</div>
-</div>
-
-<div class="card">
-<div class="label">MTF BULLISH</div>
-<div class="value green"
-id="bullish_tf">0</div>
-</div>
-
-<div class="card">
-<div class="label">MTF BEARISH</div>
-<div class="value red"
-id="bearish_tf">0</div>
+<div class="value yellow" id="confidence">0%</div>
 </div>
 
 <div class="card">
 <div class="label">WINRATE</div>
-<div class="value yellow"
-id="winrate">0%</div>
+<div class="value yellow" id="winrate">0%</div>
 </div>
 
 <div class="card">
 <div class="label">TOTAL TRADE</div>
-<div class="value"
-id="trade_count">0</div>
+<div class="value" id="trade_count">0</div>
 </div>
 
 </div>
-
-<!-- MULTI TF -->
 
 <div class="chart-box">
 
 <div class="chart-title">
-🧠 MULTI TIME FRAME ANALYSIS
+📈 REALTIME PNL
 </div>
 
-<div class="timeframe-grid">
-
-<div class="tf-card">
-<div class="tf-title">1M</div>
-<div class="tf-value" id="tf_1m">-</div>
-</div>
-
-<div class="tf-card">
-<div class="tf-title">5M</div>
-<div class="tf-value" id="tf_5m">-</div>
-</div>
-
-<div class="tf-card">
-<div class="tf-title">15M</div>
-<div class="tf-value" id="tf_15m">-</div>
-</div>
-
-<div class="tf-card">
-<div class="tf-title">1H</div>
-<div class="tf-value" id="tf_1h">-</div>
-</div>
-
-<div class="tf-card">
-<div class="tf-title">2H</div>
-<div class="tf-value" id="tf_2h">-</div>
-</div>
-
-<div class="tf-card">
-<div class="tf-title">4H</div>
-<div class="tf-value" id="tf_4h">-</div>
-</div>
-
-<div class="tf-card">
-<div class="tf-title">1D</div>
-<div class="tf-value" id="tf_1d">-</div>
-</div>
-
-<div class="tf-card">
-<div class="tf-title">1W</div>
-<div class="tf-value" id="tf_1w">-</div>
-</div>
+<canvas id="pnlChart"></canvas>
 
 </div>
-
-</div>
-
-<!-- MARKET SCREENER -->
 
 <div class="screener-box">
 
@@ -441,7 +362,6 @@ id="trade_count">0</div>
 <table class="screener-table">
 
 <thead>
-
 <tr>
 <th>PAIR</th>
 <th>SIGNAL</th>
@@ -450,7 +370,6 @@ id="trade_count">0</div>
 <th>TREND</th>
 <th>CONF</th>
 </tr>
-
 </thead>
 
 <tbody id="screenerBody">
@@ -466,20 +385,6 @@ Waiting market scan...
 </table>
 
 </div>
-
-<!-- PNL CHART -->
-
-<div class="chart-box">
-
-<div class="chart-title">
-📈 REALTIME PNL
-</div>
-
-<canvas id="pnlChart"></canvas>
-
-</div>
-
-<!-- TRADINGVIEW -->
 
 <div class="chart-box">
 
@@ -497,10 +402,9 @@ AI MULTI TIME FRAME • SMART SCALPING • AUTO SCREENER
 
 <script>
 
-const socket = io({
-transports:['websocket'],
-reconnection:true
-});
+const socket = io();
+
+let currentChartSymbol = "BTCUSDT";
 
 const labels = [];
 const pnlData = [];
@@ -509,74 +413,46 @@ const chart = new Chart(
 document.getElementById('pnlChart'),
 {
 type:'line',
-
 data:{
 labels:labels,
-
 datasets:[{
 label:'Realtime PNL',
 data:pnlData,
-borderWidth:3,
-tension:0.4
+borderWidth:2,
+tension:0.3
 }]
 },
-
 options:{
-responsive:true,
+responsive:true
+}
+}
+);
 
-plugins:{
-legend:{
-labels:{
-color:'white'
-}
-}
-},
+function safeNumber(v, d=4){
 
-scales:{
-x:{
-ticks:{
-color:'white'
-}
-},
-y:{
-ticks:{
-color:'white'
-}
-}
-}
-}
-});
+const n = parseFloat(v);
 
-function setTF(id,val){
+if(isNaN(n)) return "-";
+
+return n.toFixed(d);
+}
+
+function setText(id,val){
 
 const el = document.getElementById(id);
 
-if(!el) return;
-
-el.innerText = val || '-';
-
-el.classList.remove(
-'green',
-'red',
-'yellow'
-);
-
-if(val === 'BULLISH'){
-
-el.classList.add('green');
-
-}else if(val === 'BEARISH'){
-
-el.classList.add('red');
-
-}else{
-
-el.classList.add('yellow');
-
+if(el){
+el.innerText = val;
 }
 }
 
 function loadTradingView(symbol){
+
+if(currentChartSymbol === symbol){
+return;
+}
+
+currentChartSymbol = symbol;
 
 document.getElementById(
 'tradingview_chart'
@@ -615,108 +491,102 @@ loadTradingView("BTCUSDT");
 
 socket.on('update', function(data){
 
-console.log("SOCKET DATA:", data);
+console.log(data);
 
-// BASIC
+setText('symbol', data.symbol || '-');
 
-document.getElementById('symbol').innerText =
-data.symbol || '-';
+setText(
+'price',
+safeNumber(data.price)
+);
 
-document.getElementById('price').innerText =
-Number(data.price || 0).toFixed(4);
+setText(
+'balance',
+'$' + safeNumber(data.balance,2)
+);
 
-document.getElementById('balance').innerText =
-'$' + Number(data.balance || 0).toFixed(2);
+setText(
+'position',
+data.position || 'NONE'
+);
 
-document.getElementById('position').innerText =
-data.position || 'NONE';
+setText(
+'entry',
+safeNumber(data.entry)
+);
 
-document.getElementById('entry').innerText =
-Number(data.entry || 0).toFixed(4);
+setText(
+'sl',
+data.sl_price
+? safeNumber(data.sl_price)
+: '-'
+);
 
-// =====================
-// FIX TP SL TRAIL
-// =====================
+setText(
+'tp',
+data.tp_price
+? safeNumber(data.tp_price)
+: '-'
+);
 
-const slPrice =
-parseFloat(data.sl_price ?? 0);
+setText(
+'trail',
+data.trail
+? (parseFloat(data.trail) * 100).toFixed(2) + '%'
+: '-'
+);
 
-const tpPrice =
-parseFloat(data.tp_price ?? 0);
+setText(
+'pnl',
+safeNumber(data.pnl)
+);
 
-const trailValue =
-parseFloat(data.trail ?? 0);
-
-document.getElementById('sl').innerText =
-slPrice > 0
-? slPrice.toFixed(4)
-: '-';
-
-document.getElementById('tp').innerText =
-tpPrice > 0
-? tpPrice.toFixed(4)
-: '-';
-
-document.getElementById('trail').innerText =
-trailValue > 0
-? (trailValue * 100).toFixed(2) + '%'
-: '-';
-
-// =====================
-// PNL
-// =====================
-
-document.getElementById('pnl').innerText =
-Number(data.pnl || 0).toFixed(4);
-
-document.getElementById('pnl_idr').innerText =
+setText(
+'pnl_idr',
 'Rp ' +
 Number(data.pnl_idr || 0)
-.toLocaleString();
+.toLocaleString()
+);
 
-// RSI
+setText(
+'rsi',
+safeNumber(data.rsi,2)
+);
 
-document.getElementById('rsi').innerText =
-Number(data.rsi || 0).toFixed(2);
+setText(
+'market_trend',
+data.trend || '-'
+);
 
-// TREND
+setText(
+'market_structure',
+data.structure || '-'
+);
 
-document.getElementById('market_trend').innerText =
-data.trend || '-';
+setText(
+'long_score',
+data.long_score || 0
+);
 
-document.getElementById('market_structure').innerText =
-data.structure || '-';
+setText(
+'short_score',
+data.short_score || 0
+);
 
-// SCORE
+setText(
+'confidence',
+(data.confidence || 0) + '%'
+);
 
-document.getElementById('long_score').innerText =
-data.long_score || 0;
+setText(
+'trade_count',
+data.trade_count || 0
+);
 
-document.getElementById('short_score').innerText =
-data.short_score || 0;
-
-// CONFIDENCE
-
-document.getElementById('confidence').innerText =
-(data.confidence || 0) + '%';
-
-// MTF
-
-document.getElementById('bullish_tf').innerText =
-data.mtf_bullish || 0;
-
-document.getElementById('bearish_tf').innerText =
-data.mtf_bearish || 0;
-
-// TRADE
-
-document.getElementById('trade_count').innerText =
-data.trade_count || 0;
-
-document.getElementById('winrate').innerText =
-(data.winrate || 0) + '%';
-
-// SIGNAL COLOR
+setText(
+'winrate',
+(data.winrate || 0) + '%'
+);
 
 const signalEl =
 document.getElementById('signal');
@@ -724,68 +594,24 @@ document.getElementById('signal');
 signalEl.innerText =
 data.signal || 'NONE';
 
-signalEl.classList.remove(
-'signal-long',
-'signal-short',
-'signal-none'
-);
+signalEl.className =
+'value';
 
 if(data.signal === 'LONG'){
-
 signalEl.classList.add(
 'signal-long'
 );
-
-}else if(data.signal === 'SHORT'){
-
+}
+else if(data.signal === 'SHORT'){
 signalEl.classList.add(
 'signal-short'
 );
-
-}else{
-
+}
+else{
 signalEl.classList.add(
 'signal-none'
 );
-
 }
-
-// PNL COLOR
-
-const pnlEl =
-document.getElementById('pnl');
-
-pnlEl.classList.remove(
-'green',
-'red'
-);
-
-if(Number(data.pnl || 0) >= 0){
-
-pnlEl.classList.add('green');
-
-}else{
-
-pnlEl.classList.add('red');
-
-}
-
-// MTF STATUS
-
-if(data.mtf){
-
-setTF('tf_1m', data.mtf["1m"]);
-setTF('tf_5m', data.mtf["5m"]);
-setTF('tf_15m', data.mtf["15m"]);
-setTF('tf_1h', data.mtf["1h"]);
-setTF('tf_2h', data.mtf["2h"]);
-setTF('tf_4h', data.mtf["4h"]);
-setTF('tf_1d', data.mtf["1d"]);
-setTF('tf_1w', data.mtf["1w"]);
-
-}
-
-// PNL CHART
 
 labels.push(
 new Date().toLocaleTimeString()
@@ -802,9 +628,7 @@ pnlData.shift();
 
 }
 
-chart.update('none');
-
-// TV CHART
+chart.update();
 
 if(data.symbol){
 
@@ -813,8 +637,6 @@ data.symbol
 );
 
 }
-
-// SCREENER
 
 if(data.screener){
 
