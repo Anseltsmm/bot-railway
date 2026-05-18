@@ -3,6 +3,7 @@
 # FULL VERSION
 # AUTO ENTRY ENABLED
 # SINGLE POSITION VERSION
+# BINANCE REAL TP/SL/TRAILING
 # =========================
 
 import eventlet
@@ -44,7 +45,6 @@ LEVERAGE = int(
     os.getenv("LEVERAGE", 10)
 )
 
-# REAL MARGIN IN USDT
 ORDER_USDT = float(
     os.getenv("ORDER_USDT", 1.0)
 )
@@ -88,7 +88,6 @@ TIMEFRAMES = [
 # COINS
 # =========================
 SCAN_COINS = [
-
     "XRPUSDT",
     "DOGEUSDT",
     "ADAUSDT",
@@ -533,7 +532,7 @@ def get_position(symbol):
     return None
 
 # =========================
-# CHECK ANY OPEN POSITION
+# GET ANY POSITION
 # =========================
 def get_any_open_position():
 
@@ -559,7 +558,7 @@ def get_any_open_position():
     return None
 
 # =========================
-# RESTORE POSITION STATE
+# RESTORE POSITION
 # =========================
 def restore_position_state():
 
@@ -572,6 +571,11 @@ def restore_position_state():
             console.print(
                 "[cyan]NO ACTIVE POSITION[/cyan]"
             )
+
+            state["symbol"] = None
+            state["side"] = None
+            state["entry"] = 0
+            state["qty"] = 0
 
             return
 
@@ -592,9 +596,24 @@ def restore_position_state():
         state["qty"] = abs(amt)
 
         if amt > 0:
+
             state["side"] = "LONG"
+
+            tp_price = entry_price * (1 + TP_ROI)
+
+            sl_price = entry_price * (1 - SL_ROI)
+
         else:
+
             state["side"] = "SHORT"
+
+            tp_price = entry_price * (1 - TP_ROI)
+
+            sl_price = entry_price * (1 + SL_ROI)
+
+        state["tp_price"] = tp_price
+        state["sl_price"] = sl_price
+        state["trail"] = TRAIL_ROI
 
         console.print(
             f"[green]RESTORED POSITION:[/green] "
@@ -623,7 +642,7 @@ def unrealized_pnl(symbol):
     )
 
 # =========================
-# GET BALANCE
+# BALANCE
 # =========================
 def get_usdt_balance():
 
@@ -642,7 +661,7 @@ def get_usdt_balance():
     except Exception as e:
 
         console.print(
-            f"[red]BALANCE FETCH ERROR:[/red] {e}"
+            f"[red]BALANCE ERROR:[/red] {e}"
         )
 
     return 0
@@ -689,7 +708,7 @@ def safe_qty(qty, step, min_qty):
     return float(f"{qty:.8f}")
 
 # =========================
-# SET LEVERAGE + MARGIN
+# LEVERAGE
 # =========================
 def set_leverage(symbol):
 
@@ -718,8 +737,25 @@ def set_leverage(symbol):
         if "No need to change margin type" not in str(e):
 
             console.print(
-                f"[red]MARGIN TYPE ERROR:[/red] {e}"
+                f"[red]MARGIN ERROR:[/red] {e}"
             )
+
+# =========================
+# CANCEL ORDERS
+# =========================
+def cancel_open_orders(symbol):
+
+    try:
+
+        client.futures_cancel_all_open_orders(
+            symbol=symbol
+        )
+
+    except Exception as e:
+
+        console.print(
+            f"[red]CANCEL ERROR:[/red] {e}"
+        )
 
 # =========================
 # OPEN POSITION
@@ -728,7 +764,6 @@ def open_position(symbol, side, qty):
 
     try:
 
-        # BLOCK GLOBAL POSITION
         if get_any_open_position():
 
             console.print(
@@ -738,6 +773,8 @@ def open_position(symbol, side, qty):
             return None
 
         set_leverage(symbol)
+
+        cancel_open_orders(symbol)
 
         order = client.futures_create_order(
 
@@ -754,21 +791,30 @@ def open_position(symbol, side, qty):
             quantity=qty
         )
 
-        price = float(
+        pos = get_position(symbol)
 
-            client.futures_mark_price(
-                symbol=symbol
-            )["markPrice"]
+        if not pos:
+
+            console.print(
+                "[red]FAILED GET POSITION[/red]"
+            )
+
+            return None
+
+        entry_price = float(
+            pos["entryPrice"]
         )
 
         if side == "LONG":
 
             tp_price = (
-                price * (1 + TP_ROI)
+                entry_price *
+                (1 + TP_ROI)
             )
 
             sl_price = (
-                price * (1 - SL_ROI)
+                entry_price *
+                (1 - SL_ROI)
             )
 
             stop_side = SIDE_SELL
@@ -776,14 +822,21 @@ def open_position(symbol, side, qty):
         else:
 
             tp_price = (
-                price * (1 - TP_ROI)
+                entry_price *
+                (1 - TP_ROI)
             )
 
             sl_price = (
-                price * (1 + SL_ROI)
+                entry_price *
+                (1 + SL_ROI)
             )
 
             stop_side = SIDE_BUY
+
+        state["symbol"] = symbol
+        state["side"] = side
+        state["entry"] = entry_price
+        state["qty"] = qty
 
         state["tp_price"] = tp_price
         state["sl_price"] = sl_price
@@ -805,7 +858,9 @@ def open_position(symbol, side, qty):
 
             closePosition=True,
 
-            workingType="MARK_PRICE"
+            workingType="MARK_PRICE",
+
+            priceProtect=True
         )
 
         # STOP LOSS
@@ -823,6 +878,32 @@ def open_position(symbol, side, qty):
             ),
 
             closePosition=True,
+
+            workingType="MARK_PRICE",
+
+            priceProtect=True
+        )
+
+        # TRAILING STOP
+        callback_rate = max(
+            0.1,
+            min(TRAIL_ROI * 100, 5)
+        )
+
+        client.futures_create_order(
+
+            symbol=symbol,
+
+            side=stop_side,
+
+            type="TRAILING_STOP_MARKET",
+
+            callbackRate=round(
+                callback_rate,
+                2
+            ),
+
+            quantity=qty,
 
             workingType="MARK_PRICE"
         )
@@ -895,11 +976,15 @@ def update_dashboard(data, screener):
         ),
 
         "entry": state["entry"],
+
         "tp_price": state["tp_price"],
+
         "sl_price": state["sl_price"],
+
         "trail": state["trail"],
 
         "pnl": pnl,
+
         "pnl_idr": pnl * USD_IDR,
 
         "balance": usdt_balance,
@@ -914,6 +999,7 @@ def update_dashboard(data, screener):
         "screener": screener,
 
         "chart_symbol": f"BINANCE:{data['symbol']}",
+
         "chart_interval": "1"
     })
 
@@ -955,7 +1041,6 @@ def run_bot():
         "[green]BOT STARTED SUCCESSFULLY[/green]"
     )
 
-    # RESTORE POSITION
     restore_position_state()
 
     while True:
@@ -1002,7 +1087,6 @@ def run_bot():
                     best_score = score
                     best_coin = data
 
-            # UPDATE DASHBOARD
             if best_coin:
 
                 update_dashboard(
@@ -1014,21 +1098,39 @@ def run_bot():
                     best_coin
                 )
 
-            # CHECK ACTIVE POSITION
             existing_position = get_any_open_position()
 
             if existing_position:
 
                 symbol = existing_position["symbol"]
 
-                console.print(
-                    f"[yellow]ACTIVE POSITION:[/yellow] "
-                    f"{symbol}"
+                amt = float(
+                    existing_position["positionAmt"]
+                )
+
+                entry_price = float(
+                    existing_position["entryPrice"]
                 )
 
                 state["symbol"] = symbol
 
+                state["entry"] = entry_price
+
+                state["qty"] = abs(amt)
+
+                if amt > 0:
+                    state["side"] = "LONG"
+                else:
+                    state["side"] = "SHORT"
+
+                console.print(
+                    f"[yellow]ACTIVE POSITION:[/yellow] "
+                    f"{state['side']} "
+                    f"{symbol}"
+                )
+
                 socketio.sleep(10)
+
                 continue
 
             else:
@@ -1038,7 +1140,6 @@ def run_bot():
                 state["entry"] = 0
                 state["qty"] = 0
 
-            # OPEN POSITION
             if best_coin:
 
                 symbol = best_coin["symbol"]
@@ -1051,12 +1152,7 @@ def run_bot():
                     socketio.sleep(10)
                     continue
 
-                # GLOBAL BLOCK
                 if get_any_open_position():
-
-                    console.print(
-                        "[yellow]SKIP GLOBAL POSITION EXISTS[/yellow]"
-                    )
 
                     socketio.sleep(10)
                     continue
@@ -1066,18 +1162,17 @@ def run_bot():
                 if available_balance < ORDER_USDT:
 
                     console.print(
-                        f"[red]INSUFFICIENT BALANCE[/red] "
-                        f"Available: {available_balance} USDT"
+                        "[red]INSUFFICIENT BALANCE[/red]"
                     )
 
                     socketio.sleep(10)
+
                     continue
 
                 step, min_qty = get_lot_filters(
                     symbol
                 )
 
-                # REAL MARGIN
                 notional = (
                     ORDER_USDT *
                     LEVERAGE
@@ -1088,7 +1183,6 @@ def run_bot():
                     best_coin["price"]
                 )
 
-                # SAFETY BUFFER
                 qty = qty * 0.98
 
                 qty = safe_qty(
@@ -1099,26 +1193,14 @@ def run_bot():
 
                 if qty <= 0:
 
-                    console.print(
-                        "[red]INVALID QTY[/red]"
-                    )
-
                     socketio.sleep(10)
+
                     continue
 
                 console.print(
                     f"[cyan]TRY ENTRY "
                     f"{best_coin['signal']} "
                     f"{symbol}[/cyan]"
-                )
-
-                console.print(
-                    f"[yellow]MARGIN:[/yellow] "
-                    f"{ORDER_USDT} USDT | "
-                    f"[yellow]LEV:[/yellow] "
-                    f"{LEVERAGE}x | "
-                    f"[yellow]QTY:[/yellow] "
-                    f"{qty}"
                 )
 
                 order = open_position(
@@ -1131,14 +1213,6 @@ def run_bot():
                 )
 
                 if order:
-
-                    state["symbol"] = symbol
-
-                    state["side"] = best_coin["signal"]
-
-                    state["entry"] = best_coin["price"]
-
-                    state["qty"] = qty
 
                     state["trade_count"] += 1
 
