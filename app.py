@@ -65,23 +65,36 @@ def trading_loop():
             # =========================
             # ENTRY
             # =========================
+            now = time.time()
+
+cooldown_passed = (
+    now -
+    bot_state["last_trade_time"]
+) > TRADE_COOLDOWN
 
             if (
-                result["signal"] == "LONG"
-                and
-                not has_open_position(SYMBOL)
-            ):
+    result["signal"] == "LONG"
+    and
+    not has_open_position(SYMBOL)
+    and
+    cooldown_passed
+):
 
-                place_long()
+    place_long()
 
-            elif (
-                result["signal"] == "SHORT"
-                and
-                not has_open_position(SYMBOL)
-            ):
+    bot_state["last_trade_time"] = now
 
-                place_short()
+elif (
+    result["signal"] == "SHORT"
+    and
+    not has_open_position(SYMBOL)
+    and
+    cooldown_passed
+):
 
+    place_short()
+
+    bot_state["last_trade_time"] = now
             # =========================
             # SOCKET
             # =========================
