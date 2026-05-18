@@ -37,7 +37,7 @@ load_dotenv()
 API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")
 
-INTERVAL = os.getenv("INTERVAL", "5m")
+INTERVAL = os.getenv("INTERVAL", "1m")
 
 LEVERAGE = int(
     os.getenv("LEVERAGE", 10)
@@ -94,7 +94,7 @@ SCAN_COINS = [
     "LTCUSDT",
     "DOTUSDT",
     "NEARUSDT",
-    "WIFUSDT"
+    "BEATUSDT"
 ]
 
 console = Console()
