@@ -1,4 +1,8 @@
 from strategy.scorer import calculate_mtf
+from strategy.snr import (
+    get_support_resistance,
+    calculate_snr_distance
+)
 
 # =========================================
 # MAIN ANALYZER
