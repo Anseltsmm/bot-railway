@@ -1,11 +1,3 @@
-# =========================
-# bot.py
-# FULL VERSION
-# AUTO ENTRY ENABLED
-# SINGLE POSITION VERSION
-# BINANCE REAL TP/SL/TRAILING
-# =========================
-
 import eventlet
 eventlet.monkey_patch()
 
