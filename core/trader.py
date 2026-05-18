@@ -549,3 +549,96 @@ def place_short():
     except Exception as e:
 
         print("SHORT ERROR:", e)
+
+# =========================
+# UPDATE WINRATE
+# =========================
+
+def update_trade_stats():
+
+    try:
+
+        positions = client.futures_position_information(
+            symbol=SYMBOL
+        )
+
+        current_amt = 0
+
+        for pos in positions:
+
+            amt = float(pos["positionAmt"])
+
+            if amt != 0:
+                current_amt = amt
+
+        # ====================================
+        # POSITION CLOSED
+        # ====================================
+
+        if (
+            bot_state["last_position_amt"] != 0
+            and
+            current_amt == 0
+        ):
+
+            income = client.futures_income_history(
+                symbol=SYMBOL,
+                incomeType="REALIZED_PNL",
+                limit=1
+            )
+
+            if income:
+
+                realized = float(
+                    income[0]["income"]
+                )
+
+                bot_state["trade_count"] += 1
+
+                # =========================
+                # WIN
+                # =========================
+
+                if realized > 0:
+
+                    bot_state["win_trade"] += 1
+
+                    bot_state["last_result"] = "WIN"
+
+                # =========================
+                # LOSE
+                # =========================
+
+                else:
+
+                    bot_state["lose_trade"] += 1
+
+                    bot_state["last_result"] = "LOSE"
+
+                # =========================
+                # WINRATE
+                # =========================
+
+                total = bot_state["trade_count"]
+
+                wins = bot_state["win_trade"]
+
+                if total > 0:
+
+                    bot_state["winrate"] = round(
+                        (wins / total) * 100,
+                        2
+                    )
+
+                print(
+                    "TRADE CLOSED:",
+                    realized
+                )
+
+        # SAVE CURRENT
+
+        bot_state["last_position_amt"] = current_amt
+
+    except Exception as e:
+
+        print("TRADE STATS ERROR:", e)
