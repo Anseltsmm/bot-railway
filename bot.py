@@ -2,7 +2,7 @@
 # bot.py
 # FULL VERSION
 # AUTO ENTRY ENABLED
-# FIXED VERSION
+# FIXED MARGIN VERSION
 # =========================
 
 import eventlet
@@ -44,8 +44,9 @@ LEVERAGE = int(
     os.getenv("LEVERAGE", 10)
 )
 
+# REAL MARGIN IN USDT
 ORDER_USDT = float(
-    os.getenv("ORDER_USDT", 1.2)
+    os.getenv("ORDER_USDT", 1.0)
 )
 
 TP_ROI = float(
@@ -57,12 +58,17 @@ SL_ROI = float(
 )
 
 TRAIL_ROI = float(
-    os.getenv("TRAIL_ROI", 0.8)
+    os.getenv("TRAIL_ROI", 0.002)
 )
 
 USD_IDR = int(
     os.getenv("USD_IDR", 17438)
 )
+
+MARGIN_TYPE = os.getenv(
+    "MARGIN_TYPE",
+    "ISOLATED"
+).upper()
 
 # =========================
 # MULTI TIMEFRAME
@@ -88,8 +94,7 @@ SCAN_COINS = [
     "ADAUSDT",
     "LINKUSDT",
     "AVAXUSDT",
-    "NEARUSDT",
-    "BEATUSDT"
+    "NEARUSDT"
 ]
 
 console = Console()
@@ -108,23 +113,16 @@ client = Client(
 state = {
 
     "symbol": None,
-
     "side": None,
-
     "entry": 0,
-
     "qty": 0,
 
     "trade_count": 0,
-
     "win": 0,
-
     "loss": 0,
 
     "tp_price": 0,
-
     "sl_price": 0,
-
     "trail": 0
 }
 
@@ -134,33 +132,23 @@ state = {
 web_data = {
 
     "symbol": "-",
-
     "signal": "NONE",
-
     "price": 0,
 
     "rsi": 0,
-
     "volume_ratio": 0,
-
     "atr_percent": 0,
 
     "trend": "NONE",
-
     "structure": "NONE",
 
     "long_score": 0,
-
     "short_score": 0,
-
     "confidence": 0,
 
     "mtf_bullish": 0,
-
     "mtf_bearish": 0,
-
     "mtf_total": 0,
-
     "mtf_status": "NONE",
 
     "mtf": {},
@@ -168,21 +156,16 @@ web_data = {
     "position": "NONE",
 
     "entry": 0,
-
     "tp_price": 0,
-
     "sl_price": 0,
-
     "trail": 0,
 
     "pnl": 0,
-
     "pnl_idr": 0,
 
     "balance": 0,
 
     "trade_count": 0,
-
     "winrate": 0,
 
     "screener": [],
@@ -200,11 +183,8 @@ def get_klines(symbol, interval):
     df = pd.DataFrame(
 
         client.futures_klines(
-
             symbol=symbol,
-
             interval=interval,
-
             limit=300
         )
     )
@@ -212,7 +192,6 @@ def get_klines(symbol, interval):
     df = df.iloc[:, :6]
 
     df.columns = [
-
         "time",
         "open",
         "high",
@@ -228,7 +207,7 @@ def get_klines(symbol, interval):
     return df
 
 # =========================
-# ANALYZE TF
+# ANALYZE TIMEFRAME
 # =========================
 def analyze_timeframe(symbol, timeframe):
 
@@ -257,22 +236,16 @@ def analyze_timeframe(symbol, timeframe):
         ).rsi()
 
         bullish = (
-
             ema21.iloc[-1] >
             ema200.iloc[-1]
-
             and
-
             rsi.iloc[-1] > 50
         )
 
         bearish = (
-
             ema21.iloc[-1] <
             ema200.iloc[-1]
-
             and
-
             rsi.iloc[-1] < 50
         )
 
@@ -305,11 +278,25 @@ def signal(symbol):
         openp = df["open"]
         volume = df["volume"]
 
-        ema9 = EMAIndicator(close, 9).ema_indicator()
-        ema21 = EMAIndicator(close, 21).ema_indicator()
-        ema200 = EMAIndicator(close, 200).ema_indicator()
+        ema9 = EMAIndicator(
+            close,
+            9
+        ).ema_indicator()
 
-        rsi = RSIIndicator(close, 14).rsi()
+        ema21 = EMAIndicator(
+            close,
+            21
+        ).ema_indicator()
+
+        ema200 = EMAIndicator(
+            close,
+            200
+        ).ema_indicator()
+
+        rsi = RSIIndicator(
+            close,
+            14
+        ).rsi()
 
         atr = AverageTrueRange(
             high,
@@ -457,9 +444,6 @@ def signal(symbol):
 
         sig = "NONE"
 
-        # =========================
-        # AUTO ENTRY ENABLED
-        # =========================
         if (
             long_score >= 85
             and mtf_bullish >= 5
@@ -484,11 +468,20 @@ def signal(symbol):
 
             "price": current_price,
 
-            "rsi": round(rsi.iloc[-1], 2),
+            "rsi": round(
+                rsi.iloc[-1],
+                2
+            ),
 
-            "volume_ratio": round(volume_ratio, 2),
+            "volume_ratio": round(
+                volume_ratio,
+                2
+            ),
 
-            "atr_percent": round(atr_percent, 4),
+            "atr_percent": round(
+                atr_percent,
+                4
+            ),
 
             "trend": trend,
 
@@ -540,7 +533,10 @@ def get_position(symbol):
                 return p
 
     except Exception as e:
-        console.print(f"[red]POSITION ERROR:[/red] {e}")
+
+        console.print(
+            f"[red]POSITION ERROR:[/red] {e}"
+        )
 
     return None
 
@@ -557,6 +553,31 @@ def unrealized_pnl(symbol):
     return float(
         pos["unRealizedProfit"]
     )
+
+# =========================
+# GET BALANCE
+# =========================
+def get_usdt_balance():
+
+    try:
+
+        balances = client.futures_account_balance()
+
+        for b in balances:
+
+            if b["asset"] == "USDT":
+
+                return float(
+                    b["availableBalance"]
+                )
+
+    except Exception as e:
+
+        console.print(
+            f"[red]BALANCE FETCH ERROR:[/red] {e}"
+        )
+
+    return 0
 
 # =========================
 # LOT FILTER
@@ -600,7 +621,7 @@ def safe_qty(qty, step, min_qty):
     return float(f"{qty:.8f}")
 
 # =========================
-# SET LEVERAGE
+# SET LEVERAGE + MARGIN
 # =========================
 def set_leverage(symbol):
 
@@ -612,7 +633,25 @@ def set_leverage(symbol):
         )
 
     except Exception as e:
-        console.print(f"[red]LEVERAGE ERROR:[/red] {e}")
+
+        console.print(
+            f"[red]LEVERAGE ERROR:[/red] {e}"
+        )
+
+    try:
+
+        client.futures_change_margin_type(
+            symbol=symbol,
+            marginType=MARGIN_TYPE
+        )
+
+    except Exception as e:
+
+        if "No need to change margin type" not in str(e):
+
+            console.print(
+                f"[red]MARGIN TYPE ERROR:[/red] {e}"
+            )
 
 # =========================
 # OPEN POSITION
@@ -621,13 +660,12 @@ def open_position(symbol, side, qty):
 
     try:
 
-        # =========================
-        # BLOCK DOUBLE ENTRY
-        # =========================
         if get_position(symbol):
+
             console.print(
                 "[yellow]POSITION ALREADY OPEN[/yellow]"
             )
+
             return None
 
         set_leverage(symbol)
@@ -682,9 +720,7 @@ def open_position(symbol, side, qty):
         state["sl_price"] = sl_price
         state["trail"] = TRAIL_ROI
 
-        # =========================
         # TAKE PROFIT
-        # =========================
         client.futures_create_order(
 
             symbol=symbol,
@@ -693,16 +729,17 @@ def open_position(symbol, side, qty):
 
             type="TAKE_PROFIT_MARKET",
 
-            stopPrice=round(tp_price, 6),
+            stopPrice=round(
+                tp_price,
+                6
+            ),
 
             closePosition=True,
 
             workingType="MARK_PRICE"
         )
 
-        # =========================
         # STOP LOSS
-        # =========================
         client.futures_create_order(
 
             symbol=symbol,
@@ -711,7 +748,10 @@ def open_position(symbol, side, qty):
 
             type="STOP_MARKET",
 
-            stopPrice=round(sl_price, 6),
+            stopPrice=round(
+                sl_price,
+                6
+            ),
 
             closePosition=True,
 
@@ -745,27 +785,7 @@ def update_dashboard(data, screener):
             state["symbol"]
         )
 
-    try:
-
-        balance_info = client.futures_account_balance()
-
-        usdt_balance = 0
-
-        for b in balance_info:
-
-            if b["asset"] == "USDT":
-
-                usdt_balance = float(
-                    b["balance"]
-                )
-
-    except Exception as e:
-
-        console.print(
-            f"[red]BALANCE ERROR:[/red] {e}"
-        )
-
-        usdt_balance = 0
+    usdt_balance = get_usdt_balance()
 
     winrate = 0
 
@@ -838,10 +858,8 @@ def update_dashboard(data, screener):
 
         "screener": screener,
 
-        # =========================
-        # FIX TRADINGVIEW RELOAD
-        # =========================
         "chart_symbol": f"BINANCE:{data['symbol']}",
+
         "chart_interval": "1"
     })
 
@@ -927,9 +945,7 @@ def run_bot():
                     best_score = score
                     best_coin = data
 
-            # =========================
             # UPDATE DASHBOARD
-            # =========================
             if best_coin:
 
                 update_dashboard(
@@ -941,9 +957,7 @@ def run_bot():
                     best_coin
                 )
 
-            # =========================
             # CHECK POSITION
-            # =========================
             if state["symbol"]:
 
                 pos = get_position(
@@ -970,26 +984,37 @@ def run_bot():
                     state["entry"] = 0
                     state["qty"] = 0
 
-            # =========================
             # OPEN POSITION
-            # =========================
             if best_coin:
 
                 symbol = best_coin["symbol"]
 
-                # ONLY LONG / SHORT
                 if best_coin["signal"] not in [
                     "LONG",
                     "SHORT"
                 ]:
+
                     socketio.sleep(10)
                     continue
 
-                # BLOCK IF EXIST POSITION
                 if get_position(symbol):
+
                     console.print(
                         "[yellow]SKIP POSITION EXISTS[/yellow]"
                     )
+
+                    socketio.sleep(10)
+                    continue
+
+                available_balance = get_usdt_balance()
+
+                if available_balance < ORDER_USDT:
+
+                    console.print(
+                        f"[red]INSUFFICIENT BALANCE[/red] "
+                        f"Available: {available_balance} USDT"
+                    )
+
                     socketio.sleep(10)
                     continue
 
@@ -997,10 +1022,19 @@ def run_bot():
                     symbol
                 )
 
-                qty = (
+                # REAL MARGIN
+                notional = (
                     ORDER_USDT *
                     LEVERAGE
-                ) / best_coin["price"]
+                )
+
+                qty = (
+                    notional /
+                    best_coin["price"]
+                )
+
+                # SAFETY BUFFER
+                qty = qty * 0.98
 
                 qty = safe_qty(
                     qty,
@@ -1009,14 +1043,27 @@ def run_bot():
                 )
 
                 if qty <= 0:
+
                     console.print(
                         "[red]INVALID QTY[/red]"
                     )
+
                     socketio.sleep(10)
                     continue
 
                 console.print(
-                    f"[cyan]TRY ENTRY {best_coin['signal']} {symbol}[/cyan]"
+                    f"[cyan]TRY ENTRY "
+                    f"{best_coin['signal']} "
+                    f"{symbol}[/cyan]"
+                )
+
+                console.print(
+                    f"[yellow]MARGIN:[/yellow] "
+                    f"{ORDER_USDT} USDT | "
+                    f"[yellow]LEV:[/yellow] "
+                    f"{LEVERAGE}x | "
+                    f"[yellow]QTY:[/yellow] "
+                    f"{qty}"
                 )
 
                 order = open_position(
@@ -1030,26 +1077,4 @@ def run_bot():
 
                 if order:
 
-                    state["symbol"] = symbol
-
-                    state["side"] = best_coin["signal"]
-
-                    state["entry"] = best_coin["price"]
-
-                    state["qty"] = qty
-
-                    state["trade_count"] += 1
-
-                    console.print(
-                        "[green]POSITION OPENED[/green]"
-                    )
-
-            socketio.sleep(15)
-
-        except Exception as e:
-
-            console.print(
-                f"[red]MAIN LOOP ERROR:[/red] {e}"
-            )
-
-            socketio.sleep(5)
+                    state["sym
