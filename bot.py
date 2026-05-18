@@ -2,7 +2,7 @@
 # bot.py
 # FULL VERSION
 # AUTO ENTRY ENABLED
-# FIXED MARGIN VERSION
+# SINGLE POSITION VERSION
 # =========================
 
 import eventlet
@@ -170,7 +170,6 @@ web_data = {
 
     "screener": [],
 
-    # FIX TV CHART
     "chart_symbol": "BINANCE:BTCUSDT",
     "chart_interval": "1"
 }
@@ -463,9 +462,7 @@ def signal(symbol):
         return {
 
             "symbol": symbol,
-
             "signal": sig,
-
             "price": current_price,
 
             "rsi": round(
@@ -484,21 +481,16 @@ def signal(symbol):
             ),
 
             "trend": trend,
-
             "structure": structure,
 
             "long_score": long_score,
-
             "short_score": short_score,
 
             "confidence": confidence,
 
             "mtf_bullish": mtf_bullish,
-
             "mtf_bearish": mtf_bearish,
-
             "mtf_total": mtf_total,
-
             "mtf_status": mtf_status,
 
             "mtf": mtf_map
@@ -539,6 +531,82 @@ def get_position(symbol):
         )
 
     return None
+
+# =========================
+# CHECK ANY OPEN POSITION
+# =========================
+def get_any_open_position():
+
+    try:
+
+        positions = client.futures_position_information()
+
+        for p in positions:
+
+            amt = float(
+                p["positionAmt"]
+            )
+
+            if abs(amt) > 0.000001:
+                return p
+
+    except Exception as e:
+
+        console.print(
+            f"[red]GLOBAL POSITION ERROR:[/red] {e}"
+        )
+
+    return None
+
+# =========================
+# RESTORE POSITION STATE
+# =========================
+def restore_position_state():
+
+    try:
+
+        pos = get_any_open_position()
+
+        if not pos:
+
+            console.print(
+                "[cyan]NO ACTIVE POSITION[/cyan]"
+            )
+
+            return
+
+        symbol = pos["symbol"]
+
+        amt = float(
+            pos["positionAmt"]
+        )
+
+        entry_price = float(
+            pos["entryPrice"]
+        )
+
+        state["symbol"] = symbol
+
+        state["entry"] = entry_price
+
+        state["qty"] = abs(amt)
+
+        if amt > 0:
+            state["side"] = "LONG"
+        else:
+            state["side"] = "SHORT"
+
+        console.print(
+            f"[green]RESTORED POSITION:[/green] "
+            f"{state['side']} "
+            f"{symbol}"
+        )
+
+    except Exception as e:
+
+        console.print(
+            f"[red]RESTORE ERROR:[/red] {e}"
+        )
 
 # =========================
 # PNL
@@ -660,10 +728,11 @@ def open_position(symbol, side, qty):
 
     try:
 
-        if get_position(symbol):
+        # BLOCK GLOBAL POSITION
+        if get_any_open_position():
 
             console.print(
-                "[yellow]POSITION ALREADY OPEN[/yellow]"
+                "[yellow]GLOBAL POSITION EXISTS[/yellow]"
             )
 
             return None
@@ -799,33 +868,23 @@ def update_dashboard(data, screener):
     web_data.update({
 
         "symbol": data["symbol"],
-
         "signal": data["signal"],
-
         "price": data["price"],
 
         "rsi": data["rsi"],
-
         "volume_ratio": data["volume_ratio"],
-
         "atr_percent": data["atr_percent"],
 
         "trend": data["trend"],
-
         "structure": data["structure"],
 
         "long_score": data["long_score"],
-
         "short_score": data["short_score"],
-
         "confidence": data["confidence"],
 
         "mtf_bullish": data["mtf_bullish"],
-
         "mtf_bearish": data["mtf_bearish"],
-
         "mtf_total": data["mtf_total"],
-
         "mtf_status": data["mtf_status"],
 
         "mtf": data["mtf"],
@@ -836,15 +895,11 @@ def update_dashboard(data, screener):
         ),
 
         "entry": state["entry"],
-
         "tp_price": state["tp_price"],
-
         "sl_price": state["sl_price"],
-
         "trail": state["trail"],
 
         "pnl": pnl,
-
         "pnl_idr": pnl * USD_IDR,
 
         "balance": usdt_balance,
@@ -859,7 +914,6 @@ def update_dashboard(data, screener):
         "screener": screener,
 
         "chart_symbol": f"BINANCE:{data['symbol']}",
-
         "chart_interval": "1"
     })
 
@@ -900,6 +954,9 @@ def run_bot():
     console.print(
         "[green]BOT STARTED SUCCESSFULLY[/green]"
     )
+
+    # RESTORE POSITION
+    restore_position_state()
 
     while True:
 
@@ -957,32 +1014,29 @@ def run_bot():
                     best_coin
                 )
 
-            # CHECK POSITION
-            if state["symbol"]:
+            # CHECK ACTIVE POSITION
+            existing_position = get_any_open_position()
 
-                pos = get_position(
-                    state["symbol"]
+            if existing_position:
+
+                symbol = existing_position["symbol"]
+
+                console.print(
+                    f"[yellow]ACTIVE POSITION:[/yellow] "
+                    f"{symbol}"
                 )
 
-                if pos:
+                state["symbol"] = symbol
 
-                    console.print(
-                        "[yellow]POSITION STILL OPEN[/yellow]"
-                    )
+                socketio.sleep(10)
+                continue
 
-                    socketio.sleep(10)
-                    continue
+            else:
 
-                else:
-
-                    console.print(
-                        "[cyan]POSITION CLOSED[/cyan]"
-                    )
-
-                    state["symbol"] = None
-                    state["side"] = None
-                    state["entry"] = 0
-                    state["qty"] = 0
+                state["symbol"] = None
+                state["side"] = None
+                state["entry"] = 0
+                state["qty"] = 0
 
             # OPEN POSITION
             if best_coin:
@@ -997,10 +1051,11 @@ def run_bot():
                     socketio.sleep(10)
                     continue
 
-                if get_position(symbol):
+                # GLOBAL BLOCK
+                if get_any_open_position():
 
                     console.print(
-                        "[yellow]SKIP POSITION EXISTS[/yellow]"
+                        "[yellow]SKIP GLOBAL POSITION EXISTS[/yellow]"
                     )
 
                     socketio.sleep(10)
