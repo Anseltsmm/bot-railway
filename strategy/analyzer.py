@@ -4,11 +4,17 @@ from strategy.snr import (
     calculate_snr_distance
 )
 
+from strategy.mtf import get_tf_dataframe
+
 # =========================================
 # MAIN ANALYZER
 # =========================================
 
 def analyze_multi_tf():
+
+    # =========================================
+    # MTF DATA
+    # =========================================
 
     data = calculate_mtf()
 
@@ -25,17 +31,56 @@ def analyze_multi_tf():
     confidence = 0
 
     # =========================================
+    # GET MAIN TF DATA
+    # =========================================
+
+    df = get_tf_dataframe("5m")
+
+    current_price = float(
+        df.iloc[-1]["close"]
+    )
+
+    # =========================================
+    # SUPPORT RESISTANCE
+    # =========================================
+
+    snr = get_support_resistance(df)
+
+    support = snr["support"]
+    resistance = snr["resistance"]
+
+    # =========================================
+    # DISTANCE
+    # =========================================
+
+    distance = calculate_snr_distance(
+        price=current_price,
+        support=support,
+        resistance=resistance
+    )
+
+    support_distance = (
+        distance["support_distance"]
+    )
+
+    resistance_distance = (
+        distance["resistance_distance"]
+    )
+
+    # =========================================
     # TREND
     # =========================================
 
     if bullish_tf > bearish_tf:
+
         trend = "BULLISH"
 
     elif bearish_tf > bullish_tf:
+
         trend = "BEARISH"
 
     # =========================================
-    # SIGNAL LOGIC
+    # CONFIDENCE
     # =========================================
 
     score_diff = abs(
@@ -48,29 +93,49 @@ def analyze_multi_tf():
     )
 
     # =========================================
-    # LONG
+    # LONG SIGNAL
     # =========================================
 
     if (
+
         bullish_tf >= 5
+
         and
+
         long_score > short_score
+
         and
+
         confidence >= 60
+
+        and
+
+        resistance_distance > 0.5
+
     ):
 
         signal = "LONG"
 
     # =========================================
-    # SHORT
+    # SHORT SIGNAL
     # =========================================
 
     elif (
+
         bearish_tf >= 5
+
         and
+
         short_score > long_score
+
         and
+
         confidence >= 60
+
+        and
+
+        support_distance > 0.5
+
     ):
 
         signal = "SHORT"
@@ -84,9 +149,11 @@ def analyze_multi_tf():
     if confidence >= 70:
 
         if signal == "LONG":
+
             structure = "UPTREND"
 
         elif signal == "SHORT":
+
             structure = "DOWNTREND"
 
     # =========================================
@@ -109,5 +176,19 @@ def analyze_multi_tf():
 
         "rsi": data["rsi"],
 
-        "mtf": data["mtf"]
+        "mtf": data["mtf"],
+
+        # =========================
+        # SUPPORT RESISTANCE
+        # =========================
+
+        "support": support,
+
+        "resistance": resistance,
+
+        "support_distance":
+        support_distance,
+
+        "resistance_distance":
+        resistance_distance
     }
