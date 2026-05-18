@@ -79,7 +79,7 @@ SCAN_COINS = [
     "AVAXUSDT",
     "LTCUSDT",
     "DOTUSDT",
-    "1000PEPEUSDT",
+    "BEATUSDT",
     "WIFUSDT",
     "NEARUSDT"
 ]
