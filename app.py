@@ -1,12 +1,12 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO
+
 import threading
 import time
 import os
-import pandas as pd
 
 from core.trader import *
-from strategy import analyze
+from strategy.analyzer import analyze_multi_tf
 from state import bot_state
 from config import *
 
@@ -22,31 +22,6 @@ socketio = SocketIO(
 def index():
     return render_template("dashboard.html")
 
-def get_klines():
-
-    klines = client.futures_klines(
-        symbol=SYMBOL,
-        interval=INTERVAL,
-        limit=200
-    )
-
-    df = pd.DataFrame(klines)
-
-    df = df.iloc[:, :6]
-
-    df.columns = [
-        "time",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume"
-    ]
-
-    df = df.astype(float)
-
-    return df
-
 def trading_loop():
 
     while True:
@@ -54,24 +29,38 @@ def trading_loop():
         try:
 
             # =========================
-            # MARKET DATA
+            # ANALYZE
             # =========================
 
-            df = get_klines()
+            result = analyze_multi_tf()
 
-            result = analyze(df)
+            # =========================
+            # MARKET
+            # =========================
 
             price = get_price(SYMBOL)
-
-            # =========================
-            # UPDATE STATE
-            # =========================
 
             bot_state["symbol"] = SYMBOL
             bot_state["price"] = price
             bot_state["balance"] = get_balance()
 
+            # =========================
+            # UPDATE SIGNAL
+            # =========================
+
             bot_state.update(result)
+
+            # =========================
+            # SYNC POSITION
+            # =========================
+
+            sync_position()
+
+            # =========================
+            # UPDATE PNL
+            # =========================
+
+            update_pnl()
 
             # =========================
             # ENTRY
@@ -80,19 +69,21 @@ def trading_loop():
             if (
                 result["signal"] == "LONG"
                 and
-                bot_state["position"] == "NONE"
+                not has_open_position(SYMBOL)
             ):
+
                 place_long()
 
             elif (
                 result["signal"] == "SHORT"
                 and
-                bot_state["position"] == "NONE"
+                not has_open_position(SYMBOL)
             ):
+
                 place_short()
 
             # =========================
-            # SOCKET EMIT
+            # SOCKET
             # =========================
 
             socketio.emit(
@@ -100,8 +91,12 @@ def trading_loop():
                 bot_state
             )
 
-            print("DATA SENT")
-            print(bot_state)
+            print(
+                f"{SYMBOL} | "
+                f"{bot_state['signal']} | "
+                f"{bot_state['position']} | "
+                f"PNL: {bot_state['pnl']}"
+            )
 
         except Exception as e:
 
