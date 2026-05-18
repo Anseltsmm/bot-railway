@@ -25,23 +25,22 @@ def analyze_multi_tf():
     bearish_tf = data["bearish_tf"]
 
     signal = "NONE"
-
     trend = "SIDEWAYS"
-
+    structure = "RANGING"
     confidence = 0
 
     # =========================================
-    # GET MAIN TF DATA
+    # MAIN TF DATA
     # =========================================
 
     df = get_tf_dataframe("5m")
 
-    current_price = float(
-        df.iloc[-1]["close"]
-    )
+    last = df.iloc[-1]
+
+    current_price = float(last["close"])
 
     # =========================================
-    # SUPPORT RESISTANCE
+    # SUPPORT & RESISTANCE
     # =========================================
 
     snr = get_support_resistance(df)
@@ -50,7 +49,7 @@ def analyze_multi_tf():
     resistance = snr["resistance"]
 
     # =========================================
-    # DISTANCE
+    # DISTANCE TO SNR
     # =========================================
 
     distance = calculate_snr_distance(
@@ -59,13 +58,32 @@ def analyze_multi_tf():
         resistance=resistance
     )
 
-    support_distance = (
-        distance["support_distance"]
-    )
+    support_distance = distance[
+        "support_distance"
+    ]
 
-    resistance_distance = (
-        distance["resistance_distance"]
-    )
+    resistance_distance = distance[
+        "resistance_distance"
+    ]
+
+    # =========================================
+    # INDICATORS
+    # =========================================
+
+    rsi = float(last["rsi"])
+
+    ema_fast = float(last["ema_fast"])
+    ema_slow = float(last["ema_slow"])
+
+    macd = float(last["macd"])
+    macd_signal = float(last["macd_signal"])
+
+    adx = float(last["adx"])
+
+    volume = float(last["volume"])
+    volume_ma = float(last["volume_ma"])
+
+    high_volume = volume > volume_ma
 
     # =========================================
     # TREND
@@ -80,7 +98,7 @@ def analyze_multi_tf():
         trend = "BEARISH"
 
     # =========================================
-    # CONFIDENCE
+    # CONFIDENCE BASE
     # =========================================
 
     score_diff = abs(
@@ -93,10 +111,53 @@ def analyze_multi_tf():
     )
 
     # =========================================
-    # LONG SIGNAL
+    # BONUS CONFIDENCE
     # =========================================
 
-    if (
+    # EMA TREND
+
+    if ema_fast > ema_slow:
+
+        confidence += 5
+
+    else:
+
+        confidence += 5
+
+    # MACD
+
+    if macd > macd_signal:
+
+        confidence += 5
+
+    else:
+
+        confidence += 5
+
+    # ADX
+
+    if adx >= 25:
+
+        confidence += 10
+
+    # VOLUME
+
+    if high_volume:
+
+        confidence += 5
+
+    # LIMIT MAX
+
+    confidence = min(
+        100,
+        round(confidence)
+    )
+
+    # =========================================
+    # LONG FILTER
+    # =========================================
+
+    long_valid = (
 
         bullish_tf >= 5
 
@@ -112,15 +173,25 @@ def analyze_multi_tf():
 
         resistance_distance > 0.5
 
-    ):
+        and
 
-        signal = "LONG"
+        ema_fast > ema_slow
+
+        and
+
+        macd > macd_signal
+
+        and
+
+        rsi > 50
+
+    )
 
     # =========================================
-    # SHORT SIGNAL
+    # SHORT FILTER
     # =========================================
 
-    elif (
+    short_valid = (
 
         bearish_tf >= 5
 
@@ -136,7 +207,29 @@ def analyze_multi_tf():
 
         support_distance > 0.5
 
-    ):
+        and
+
+        ema_fast < ema_slow
+
+        and
+
+        macd < macd_signal
+
+        and
+
+        rsi < 50
+
+    )
+
+    # =========================================
+    # SIGNAL
+    # =========================================
+
+    if long_valid:
+
+        signal = "LONG"
+
+    elif short_valid:
 
         signal = "SHORT"
 
@@ -144,23 +237,23 @@ def analyze_multi_tf():
     # STRUCTURE
     # =========================================
 
-    structure = "RANGING"
+    if signal == "LONG":
 
-    if confidence >= 70:
+        structure = "UPTREND"
 
-        if signal == "LONG":
+    elif signal == "SHORT":
 
-            structure = "UPTREND"
-
-        elif signal == "SHORT":
-
-            structure = "DOWNTREND"
+        structure = "DOWNTREND"
 
     # =========================================
     # RETURN
     # =========================================
 
     return {
+
+        # =========================
+        # SIGNAL
+        # =========================
 
         "signal": signal,
 
@@ -170,11 +263,29 @@ def analyze_multi_tf():
 
         "confidence": confidence,
 
+        # =========================
+        # SCORE
+        # =========================
+
         "long_score": long_score,
 
         "short_score": short_score,
 
-        "rsi": data["rsi"],
+        "bullish_tf": bullish_tf,
+
+        "bearish_tf": bearish_tf,
+
+        # =========================
+        # INDICATORS
+        # =========================
+
+        "rsi": round(rsi, 2),
+
+        "adx": round(adx, 2),
+
+        # =========================
+        # MTF
+        # =========================
 
         "mtf": data["mtf"],
 
@@ -182,13 +293,23 @@ def analyze_multi_tf():
         # SUPPORT RESISTANCE
         # =========================
 
-        "support": support,
+        "support": round(support, 4),
 
-        "resistance": resistance,
+        "resistance": round(resistance, 4),
 
-        "support_distance":
-        support_distance,
+        "support_distance": round(
+            support_distance,
+            2
+        ),
 
-        "resistance_distance":
-        resistance_distance
+        "resistance_distance": round(
+            resistance_distance,
+            2
+        ),
+
+        # =========================
+        # EXTRA
+        # =========================
+
+        "high_volume": high_volume
     }
