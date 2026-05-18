@@ -761,6 +761,21 @@ setText(
 data.trade_count || 0
 );
 
+  setText(
+'win_trade',
+data.win_trade || 0
+);
+
+setText(
+'lose_trade',
+data.lose_trade || 0
+);
+
+setText(
+'last_result',
+data.last_result || '-'
+);
+
 setText(
 'winrate',
 (data.winrate || 0) + '%'
