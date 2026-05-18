@@ -6,7 +6,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, render_template, jsonify
-from flask_socketio import SocketIO
+from extensions import socketio
 
 from bot import start_bot, web_data
 
