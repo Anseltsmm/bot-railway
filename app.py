@@ -1,8 +1,10 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO
-import threading
-import time
 import pandas as pd
+import eventlet
+import os
+
+eventlet.monkey_patch()
 
 from trader import *
 from strategy import analyze
@@ -13,7 +15,8 @@ app = Flask(__name__)
 
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*"
+    cors_allowed_origins="*",
+    async_mode="eventlet"
 )
 
 @app.route("/")
@@ -63,6 +66,10 @@ def trading_loop():
 
             bot_state.update(result)
 
+            # =========================
+            # ENTRY
+            # =========================
+
             if (
                 result["signal"] == "LONG"
                 and
@@ -70,32 +77,34 @@ def trading_loop():
             ):
                 place_long()
 
-            if (
+            elif (
                 result["signal"] == "SHORT"
                 and
                 bot_state["position"] == "NONE"
             ):
                 place_short()
 
+            # =========================
+            # EMIT SOCKET
+            # =========================
+
             socketio.emit(
                 "update",
                 bot_state
             )
 
+            print("DATA SENT")
             print(bot_state)
 
         except Exception as e:
-            print(e)
 
-        time.sleep(SOCKET_INTERVAL)
+            print("BOT ERROR:", e)
 
-threading.Thread(
-    target=trading_loop,
-    daemon=True
-).start()
+        socketio.sleep(SOCKET_INTERVAL)
 
 if __name__ == "__main__":
-    import os
+
+    socketio.start_background_task(trading_loop)
 
     PORT = int(os.environ.get("PORT", 5000))
 
@@ -103,6 +112,5 @@ if __name__ == "__main__":
         app,
         host="0.0.0.0",
         port=PORT,
-        debug=False,
-        allow_unsafe_werkzeug=True
+        debug=False
     )
