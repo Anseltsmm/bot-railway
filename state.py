@@ -42,6 +42,8 @@ bot_state = {
 
     "winrate": 0,
 
+    "last_trade_time": 0,
+
     "mtf": {},
 
     "screener": []
