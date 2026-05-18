@@ -178,7 +178,34 @@ color:#facc15;
 font-weight:bold;
 }
 
+.timeframe-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+gap:15px;
+margin-top:20px;
+}
+
+.tf-card{
+background:#111827;
+padding:15px;
+border-radius:15px;
+text-align:center;
+border:1px solid #1e293b;
+}
+
+.tf-title{
+font-size:13px;
+color:#94a3b8;
+margin-bottom:10px;
+}
+
+.tf-value{
+font-size:20px;
+font-weight:bold;
+}
+
 </style>
+
 </head>
 
 <body>
@@ -189,11 +216,15 @@ font-weight:bold;
 🚀 BINANCE FUTURES AI SCREENER BOT
 </div>
 
-<div class="status" id="status">
-LIVE SCANNING
+<div class="status">
+LIVE AI ENGINE
 </div>
 
 </div>
+
+<!-- ===================== -->
+<!-- MAIN GRID -->
+<!-- ===================== -->
 
 <div class="grid">
 
@@ -278,13 +309,18 @@ LIVE SCANNING
 </div>
 
 <div class="card">
-<div class="label">VOLUME RATIO</div>
-<div class="value" id="volume_ratio">0</div>
+<div class="label">AI CONFIDENCE</div>
+<div class="value yellow" id="confidence">0%</div>
 </div>
 
 <div class="card">
-<div class="label">ATR %</div>
-<div class="value" id="atr_percent">0</div>
+<div class="label">MTF BULLISH</div>
+<div class="value green" id="bullish_tf">0</div>
+</div>
+
+<div class="card">
+<div class="label">MTF BEARISH</div>
+<div class="value red" id="bearish_tf">0</div>
 </div>
 
 <div class="card">
@@ -300,7 +336,53 @@ LIVE SCANNING
 </div>
 
 <!-- ===================== -->
-<!-- COIN SCREENER -->
+<!-- MULTI TIME FRAME -->
+<!-- ===================== -->
+
+<div class="chart-box">
+
+<div class="chart-title">
+🧠 MULTI TIME FRAME ANALYSIS
+</div>
+
+<div class="timeframe-grid">
+
+<div class="tf-card">
+<div class="tf-title">1M</div>
+<div class="tf-value" id="tf_1m">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">5M</div>
+<div class="tf-value" id="tf_5m">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">15M</div>
+<div class="tf-value" id="tf_15m">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">1H</div>
+<div class="tf-value" id="tf_1h">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">4H</div>
+<div class="tf-value" id="tf_4h">-</div>
+</div>
+
+<div class="tf-card">
+<div class="tf-title">1D</div>
+<div class="tf-value" id="tf_1d">-</div>
+</div>
+
+</div>
+
+</div>
+
+<!-- ===================== -->
+<!-- SCREENER -->
 <!-- ===================== -->
 
 <div class="screener-box">
@@ -319,6 +401,7 @@ LIVE SCANNING
 <th>LONG</th>
 <th>SHORT</th>
 <th>TREND</th>
+<th>CONF</th>
 </tr>
 
 </thead>
@@ -326,8 +409,8 @@ LIVE SCANNING
 <tbody id="screenerBody">
 
 <tr>
-<td colspan="5">
-Waiting market scan...
+<td colspan="6">
+Waiting scan...
 </td>
 </tr>
 
@@ -338,7 +421,7 @@ Waiting market scan...
 </div>
 
 <!-- ===================== -->
-<!-- PNL CHART -->
+<!-- PNL -->
 <!-- ===================== -->
 
 <div class="chart-box">
@@ -352,7 +435,7 @@ Waiting market scan...
 </div>
 
 <!-- ===================== -->
-<!-- TRADINGVIEW -->
+<!-- TV -->
 <!-- ===================== -->
 
 <div class="chart-box">
@@ -366,459 +449,244 @@ Waiting market scan...
 </div>
 
 <div class="footer">
-AUTO AI SCREENER • MARKET STRUCTURE • EMA TREND • SMART SCALPING
+AI MULTI TIME FRAME • SMART SCALPING • AUTO SCREENER
 </div>
 
 <script>
 
-const socket = io({
-    transports:['websocket'],
-    reconnection:true
-});
+const socket = io();
 
 const labels = [];
 const pnlData = [];
 
-const ctx =
-document.getElementById(
-    'pnlChart'
-);
+const chart = new Chart(
+document.getElementById('pnlChart'),
+{
+type:'line',
 
-const chart = new Chart(ctx, {
+data:{
+labels:labels,
 
-    type:'line',
+datasets:[{
+label:'PNL',
+data:pnlData,
+borderWidth:3,
+tension:0.4
+}]
+},
 
-    data:{
-
-        labels:labels,
-
-        datasets:[{
-
-            label:'Realtime PNL',
-
-            data:pnlData,
-
-            borderWidth:3,
-
-            tension:0.4
-
-        }]
-    },
-
-    options:{
-
-        responsive:true,
-
-        plugins:{
-            legend:{
-                labels:{
-                    color:'white'
-                }
-            }
-        },
-
-        scales:{
-
-            x:{
-                ticks:{
-                    color:'white'
-                }
-            },
-
-            y:{
-                ticks:{
-                    color:'white'
-                }
-            }
-        }
-    }
+options:{
+responsive:true
+}
 });
 
-let tvWidget = null;
+function setTF(id,val){
+
+const el = document.getElementById(id);
+
+el.innerText = val;
+
+el.classList.remove(
+'green',
+'red',
+'yellow'
+);
+
+if(val === 'BULLISH'){
+
+el.classList.add('green');
+
+}else if(val === 'BEARISH'){
+
+el.classList.add('red');
+
+}else{
+
+el.classList.add('yellow');
+}
+}
 
 function loadTradingView(symbol){
 
-    document.getElementById(
-        'tradingview_chart'
-    ).innerHTML = "";
+document.getElementById(
+'tradingview_chart'
+).innerHTML = "";
 
-    tvWidget = new TradingView.widget({
+new TradingView.widget({
 
-        width:"100%",
-        height:550,
+width:"100%",
+height:550,
 
-        symbol:"BINANCE:" + symbol,
+symbol:"BINANCE:" + symbol,
 
-        interval:"5",
+interval:"5",
 
-        timezone:"Asia/Jakarta",
+timezone:"Asia/Jakarta",
 
-        theme:"dark",
+theme:"dark",
 
-        style:"1",
+style:"1",
 
-        locale:"en",
+locale:"en",
 
-        toolbar_bg:"#0f172a",
+toolbar_bg:"#0f172a",
 
-        enable_publishing:false,
+enable_publishing:false,
 
-        hide_top_toolbar:false,
-
-        save_image:false,
-
-        container_id:"tradingview_chart"
-    });
+container_id:"tradingview_chart"
+});
 }
 
 loadTradingView("BTCUSDT");
 
 socket.on('update', function(data){
 
-    // =====================
-    // BASIC
-    // =====================
-
-    document.getElementById(
-        'symbol'
-    ).innerText =
-        data.symbol || '-';
-
-    document.getElementById(
-        'price'
-    ).innerText =
-        Number(
-            data.price || 0
-        ).toFixed(4);
-
-    document.getElementById(
-        'balance'
-    ).innerText =
-        '$' +
-        Number(
-            data.balance || 0
-        ).toFixed(2);
-
-    document.getElementById(
-        'position'
-    ).innerText =
-        data.position || 'NONE';
-
-    document.getElementById(
-        'entry'
-    ).innerText =
-        Number(
-            data.entry || 0
-        ).toFixed(4);
-
-    // =====================
-    // TP SL
-    // =====================
-
-    document.getElementById(
-        'sl'
-    ).innerText =
-        Number(
-            data.sl_price || 0
-        ).toFixed(4);
-
-    document.getElementById(
-        'tp'
-    ).innerText =
-        Number(
-            data.tp_price || 0
-        ).toFixed(4);
-
-    document.getElementById(
-        'trail'
-    ).innerText =
-        Number(
-            data.trail || 0
-        ).toFixed(2) + '%';
-
-    // =====================
-    // PNL
-    // =====================
-
-    document.getElementById(
-        'pnl'
-    ).innerText =
-        Number(
-            data.pnl || 0
-        ).toFixed(4);
-
-    document.getElementById(
-        'pnl_idr'
-    ).innerText =
-        'Rp ' +
-        Number(
-            data.pnl_idr || 0
-        ).toLocaleString();
-
-    // =====================
-    // RSI
-    // =====================
-
-    document.getElementById(
-        'rsi'
-    ).innerText =
-        Number(
-            data.rsi || 0
-        ).toFixed(2);
-
-    // =====================
-    // TREND
-    // =====================
-
-    const trendEl =
-    document.getElementById(
-        'market_trend'
-    );
-
-    trendEl.innerText =
-        data.trend || '-';
-
-    trendEl.classList.remove(
-        'green',
-        'red',
-        'yellow'
-    );
-
-    if(data.trend === 'BULLISH'){
-
-        trendEl.classList.add(
-            'green'
-        );
-
-    }else if(
-        data.trend === 'BEARISH'
-    ){
-
-        trendEl.classList.add(
-            'red'
-        );
-
-    }else{
-
-        trendEl.classList.add(
-            'yellow'
-        );
-    }
-
-    // =====================
-    // STRUCTURE
-    // =====================
-
-    document.getElementById(
-        'market_structure'
-    ).innerText =
-        data.structure || '-';
-
-    // =====================
-    // SCORES
-    // =====================
-
-    document.getElementById(
-        'long_score'
-    ).innerText =
-        Number(
-            data.long_score || 0
-        );
-
-    document.getElementById(
-        'short_score'
-    ).innerText =
-        Number(
-            data.short_score || 0
-        );
-
-    // =====================
-    // MARKET
-    // =====================
-
-    document.getElementById(
-        'volume_ratio'
-    ).innerText =
-        Number(
-            data.volume_ratio || 0
-        ).toFixed(2);
-
-    document.getElementById(
-        'atr_percent'
-    ).innerText =
-        Number(
-            data.atr_percent || 0
-        ).toFixed(4);
-
-    // =====================
-    // WINRATE
-    // =====================
-
-    document.getElementById(
-        'winrate'
-    ).innerText =
-        Number(
-            data.winrate || 0
-        ).toFixed(2) + '%';
-
-    document.getElementById(
-        'trade_count'
-    ).innerText =
-        Number(
-            data.trade_count || 0
-        );
-
-    // =====================
-    // SIGNAL
-    // =====================
-
-    const signalEl =
-    document.getElementById(
-        'signal'
-    );
-
-    signalEl.innerText =
-        data.signal || 'NONE';
-
-    signalEl.classList.remove(
-        'signal-long',
-        'signal-short',
-        'signal-none'
-    );
-
-    if(data.signal === 'LONG'){
-
-        signalEl.classList.add(
-            'signal-long'
-        );
-
-    }else if(
-        data.signal === 'SHORT'
-    ){
+document.getElementById('symbol').innerText =
+data.symbol || '-';
 
-        signalEl.classList.add(
-            'signal-short'
-        );
+document.getElementById('signal').innerText =
+data.signal || 'NONE';
 
-    }else{
-
-        signalEl.classList.add(
-            'signal-none'
-        );
-    }
+document.getElementById('price').innerText =
+Number(data.price || 0).toFixed(4);
 
-    // =====================
-    // PNL COLOR
-    // =====================
+document.getElementById('balance').innerText =
+'$' + Number(data.balance || 0).toFixed(2);
 
-    const pnlEl =
-    document.getElementById(
-        'pnl'
-    );
+document.getElementById('position').innerText =
+data.position || 'NONE';
 
-    pnlEl.classList.remove(
-        'green',
-        'red'
-    );
+document.getElementById('entry').innerText =
+Number(data.entry || 0).toFixed(4);
 
-    if(Number(data.pnl) >= 0){
+document.getElementById('sl').innerText =
+Number(data.sl_price || 0).toFixed(4);
 
-        pnlEl.classList.add(
-            'green'
-        );
+document.getElementById('tp').innerText =
+Number(data.tp_price || 0).toFixed(4);
 
-    }else{
+document.getElementById('trail').innerText =
+Number(data.trail || 0).toFixed(2) + '%';
 
-        pnlEl.classList.add(
-            'red'
-        );
-    }
+document.getElementById('pnl').innerText =
+Number(data.pnl || 0).toFixed(4);
 
-    // =====================
-    // CHART
-    // =====================
+document.getElementById('pnl_idr').innerText =
+'Rp ' +
+Number(data.pnl_idr || 0)
+.toLocaleString();
 
-    labels.push(
-        new Date()
-        .toLocaleTimeString()
-    );
+document.getElementById('rsi').innerText =
+Number(data.rsi || 0).toFixed(2);
 
-    pnlData.push(
-        Number(
-            data.pnl || 0
-        )
-    );
+document.getElementById('market_trend').innerText =
+data.trend || '-';
 
-    if(labels.length > 50){
+document.getElementById('market_structure').innerText =
+data.structure || '-';
 
-        labels.shift();
-        pnlData.shift();
-    }
+document.getElementById('long_score').innerText =
+data.long_score || 0;
 
-    chart.update('none');
+document.getElementById('short_score').innerText =
+data.short_score || 0;
 
-    // =====================
-    // UPDATE TV CHART
-    // =====================
+document.getElementById('confidence').innerText =
+(data.confidence || 0) + '%';
 
-    if(data.symbol){
+document.getElementById('bullish_tf').innerText =
+data.bullish_tf || 0;
 
-        loadTradingView(
-            data.symbol
-        );
-    }
+document.getElementById('bearish_tf').innerText =
+data.bearish_tf || 0;
 
-    // =====================
-    // SCREENER TABLE
-    // =====================
+document.getElementById('trade_count').innerText =
+data.trade_count || 0;
 
-    if(data.screener){
+document.getElementById('winrate').innerText =
+(data.winrate || 0) + '%';
 
-        let html = "";
+if(data.mtf){
 
-        data.screener.forEach(item => {
+setTF('tf_1m', data.mtf["1m"]);
+setTF('tf_5m', data.mtf["5m"]);
+setTF('tf_15m', data.mtf["15m"]);
+setTF('tf_1h', data.mtf["1h"]);
+setTF('tf_4h', data.mtf["4h"]);
+setTF('tf_1d', data.mtf["1d"]);
 
-            let cls = "none";
+}
 
-            if(item.signal === "LONG"){
-                cls = "long";
-            }
+labels.push(
+new Date().toLocaleTimeString()
+);
 
-            if(item.signal === "SHORT"){
-                cls = "short";
-            }
+pnlData.push(
+Number(data.pnl || 0)
+);
 
-            html += `
+if(labels.length > 50){
 
-            <tr>
+labels.shift();
+pnlData.shift();
 
-            <td>${item.symbol}</td>
+}
 
-            <td class="${cls}">
-            ${item.signal}
-            </td>
+chart.update('none');
 
-            <td>
-            ${item.long_score}
-            </td>
+if(data.symbol){
 
-            <td>
-            ${item.short_score}
-            </td>
+loadTradingView(
+data.symbol
+);
 
-            <td>
-            ${item.trend}
-            </td>
+}
 
-            </tr>
+if(data.screener){
 
-            `;
-        });
+let html = "";
 
-        document.getElementById(
-            'screenerBody'
-        ).innerHTML = html;
-    }
+data.screener.forEach(item => {
+
+let cls = "none";
+
+if(item.signal === "LONG"){
+cls = "long";
+}
+
+if(item.signal === "SHORT"){
+cls = "short";
+}
+
+html += `
+
+<tr>
+
+<td>${item.symbol}</td>
+
+<td class="${cls}">
+${item.signal}
+</td>
+
+<td>${item.long_score}</td>
+
+<td>${item.short_score}</td>
+
+<td>${item.trend}</td>
+
+<td>${item.confidence}%</td>
+
+</tr>
+
+`;
+
+});
+
+document.getElementById(
+'screenerBody'
+).innerHTML = html;
+
+}
 
 });
 
