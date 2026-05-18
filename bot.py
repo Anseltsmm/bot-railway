@@ -2,6 +2,7 @@
 # bot.py
 # FULL VERSION
 # AUTO ENTRY ENABLED
+# FIXED VERSION
 # =========================
 
 import eventlet
@@ -93,8 +94,7 @@ SCAN_COINS = [
     "AVAXUSDT",
     "LTCUSDT",
     "DOTUSDT",
-    "NEARUSDT",
-    "BEATUSDT"
+    "NEARUSDT"
 ]
 
 console = Console()
@@ -190,7 +190,11 @@ web_data = {
 
     "winrate": 0,
 
-    "screener": []
+    "screener": [],
+
+    # FIX TV CHART
+    "chart_symbol": "BINANCE:BTCUSDT",
+    "chart_interval": "1"
 }
 
 # =========================
@@ -458,6 +462,9 @@ def signal(symbol):
 
         sig = "NONE"
 
+        # =========================
+        # AUTO ENTRY ENABLED
+        # =========================
         if (
             long_score >= 85
             and mtf_bullish >= 5
@@ -537,8 +544,8 @@ def get_position(symbol):
             if abs(amt) > 0.000001:
                 return p
 
-    except:
-        pass
+    except Exception as e:
+        console.print(f"[red]POSITION ERROR:[/red] {e}")
 
     return None
 
@@ -609,8 +616,8 @@ def set_leverage(symbol):
             leverage=LEVERAGE
         )
 
-    except:
-        pass
+    except Exception as e:
+        console.print(f"[red]LEVERAGE ERROR:[/red] {e}")
 
 # =========================
 # OPEN POSITION
@@ -618,6 +625,15 @@ def set_leverage(symbol):
 def open_position(symbol, side, qty):
 
     try:
+
+        # =========================
+        # BLOCK DOUBLE ENTRY
+        # =========================
+        if get_position(symbol):
+            console.print(
+                "[yellow]POSITION ALREADY OPEN[/yellow]"
+            )
+            return None
 
         set_leverage(symbol)
 
@@ -671,7 +687,9 @@ def open_position(symbol, side, qty):
         state["sl_price"] = sl_price
         state["trail"] = TRAIL_ROI
 
-        # TP
+        # =========================
+        # TAKE PROFIT
+        # =========================
         client.futures_create_order(
 
             symbol=symbol,
@@ -682,10 +700,14 @@ def open_position(symbol, side, qty):
 
             stopPrice=round(tp_price, 6),
 
-            closePosition=True
+            closePosition=True,
+
+            workingType="MARK_PRICE"
         )
 
-        # SL
+        # =========================
+        # STOP LOSS
+        # =========================
         client.futures_create_order(
 
             symbol=symbol,
@@ -696,7 +718,9 @@ def open_position(symbol, side, qty):
 
             stopPrice=round(sl_price, 6),
 
-            closePosition=True
+            closePosition=True,
+
+            workingType="MARK_PRICE"
         )
 
         console.print(
@@ -817,7 +841,13 @@ def update_dashboard(data, screener):
             2
         ),
 
-        "screener": screener
+        "screener": screener,
+
+        # =========================
+        # FIX TRADINGVIEW RELOAD
+        # =========================
+        "chart_symbol": f"BINANCE:{data['symbol']}",
+        "chart_interval": "1"
     })
 
     socketio.emit(
@@ -853,6 +883,10 @@ def terminal_dashboard(data):
 # RUN BOT
 # =========================
 def run_bot():
+
+    console.print(
+        "[green]BOT STARTED SUCCESSFULLY[/green]"
+    )
 
     while True:
 
@@ -932,8 +966,14 @@ def run_bot():
 
                 else:
 
+                    console.print(
+                        "[cyan]POSITION CLOSED[/cyan]"
+                    )
+
                     state["symbol"] = None
                     state["side"] = None
+                    state["entry"] = 0
+                    state["qty"] = 0
 
             # =========================
             # OPEN POSITION
@@ -941,6 +981,22 @@ def run_bot():
             if best_coin:
 
                 symbol = best_coin["symbol"]
+
+                # ONLY LONG / SHORT
+                if best_coin["signal"] not in [
+                    "LONG",
+                    "SHORT"
+                ]:
+                    socketio.sleep(10)
+                    continue
+
+                # BLOCK IF EXIST POSITION
+                if get_position(symbol):
+                    console.print(
+                        "[yellow]SKIP POSITION EXISTS[/yellow]"
+                    )
+                    socketio.sleep(10)
+                    continue
 
                 step, min_qty = get_lot_filters(
                     symbol
@@ -955,6 +1011,17 @@ def run_bot():
                     qty,
                     step,
                     min_qty
+                )
+
+                if qty <= 0:
+                    console.print(
+                        "[red]INVALID QTY[/red]"
+                    )
+                    socketio.sleep(10)
+                    continue
+
+                console.print(
+                    f"[cyan]TRY ENTRY {best_coin['signal']} {symbol}[/cyan]"
                 )
 
                 order = open_position(
@@ -977,6 +1044,10 @@ def run_bot():
                     state["qty"] = qty
 
                     state["trade_count"] += 1
+
+                    console.print(
+                        "[green]POSITION OPENED[/green]"
+                    )
 
             socketio.sleep(15)
 
