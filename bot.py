@@ -1,5 +1,6 @@
-import eventlet
-eventlet.monkey_patch()
+# =========================
+# bot.py
+# =========================
 
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -9,16 +10,13 @@ import math
 import time
 import pandas as pd
 
-from flask import Flask, render_template, jsonify
-from flask_socketio import SocketIO
-
 from dotenv import load_dotenv
 
 from binance.client import Client
 from binance.enums import *
 
 from ta.momentum import RSIIndicator
-from ta.trend import EMAIndicator
+from ta.trend import EMAIndicator, MACD
 from ta.volatility import AverageTrueRange
 
 from rich.console import Console
@@ -44,15 +42,11 @@ TRAIL_ROI = float(os.getenv("TRAIL_ROI", 0.8))
 
 USD_IDR = int(os.getenv("USD_IDR", 17438))
 
-MARGIN_TYPE = os.getenv(
-    "MARGIN_TYPE",
-    "ISOLATED"
-)
-
 # =========================
-# MULTI TIMEFRAME
+# TIMEFRAMES
 # =========================
 TIMEFRAMES = [
+
     "1m",
     "5m",
     "15m",
@@ -64,7 +58,7 @@ TIMEFRAMES = [
 ]
 
 # =========================
-# COIN SCREENER
+# COINS
 # =========================
 SCAN_COINS = [
 
@@ -79,11 +73,13 @@ SCAN_COINS = [
     "AVAXUSDT",
     "LTCUSDT",
     "DOTUSDT",
-    "BEATUSDT",
     "WIFUSDT",
     "NEARUSDT"
 ]
 
+# =========================
+# CONSOLE
+# =========================
 console = Console()
 
 # =========================
@@ -92,17 +88,6 @@ console = Console()
 client = Client(
     API_KEY,
     API_SECRET
-)
-
-# =========================
-# FLASK
-# =========================
-app = Flask(__name__)
-
-socketio = SocketIO(
-    app,
-    cors_allowed_origins="*",
-    async_mode="eventlet"
 )
 
 # =========================
@@ -128,11 +113,7 @@ state = {
 
     "sl_price": 0,
 
-    "trail": 0,
-
-    "last_trade": 0,
-
-    "last_position_state": False
+    "trail": 0
 }
 
 # =========================
@@ -147,6 +128,8 @@ web_data = {
     "price": 0,
 
     "rsi": 0,
+
+    "macd": 0,
 
     "volume_ratio": 0,
 
@@ -168,6 +151,10 @@ web_data = {
 
     "mtf_status": "NEUTRAL",
 
+    "ai_confidence": 0,
+
+    "timeframes": {},
+
     "position": "NONE",
 
     "entry": 0,
@@ -186,29 +173,43 @@ web_data = {
 
     "trade_count": 0,
 
-    "winrate": 0
+    "winrate": 0,
+
+    "screener": []
 }
 
 # =========================
-# ROUTES
+# CACHE
 # =========================
-@app.route("/")
-def home():
-    return render_template("dashboard.html")
+KLINE_CACHE = {}
 
-@app.route("/api/data")
-def api_data():
-    return jsonify(web_data)
+CACHE_SECONDS = 10
 
 # =========================
 # GET KLINES
 # =========================
 def get_klines(symbol, interval):
 
+    key = f"{symbol}_{interval}"
+
+    now = time.time()
+
+    if key in KLINE_CACHE:
+
+        cache_time = KLINE_CACHE[key]["time"]
+
+        if now - cache_time < CACHE_SECONDS:
+
+            return KLINE_CACHE[key]["data"]
+
     df = pd.DataFrame(
+
         client.futures_klines(
+
             symbol=symbol,
+
             interval=interval,
+
             limit=300
         )
     )
@@ -216,6 +217,7 @@ def get_klines(symbol, interval):
     df = df.iloc[:, :6]
 
     df.columns = [
+
         "time",
         "open",
         "high",
@@ -228,10 +230,17 @@ def get_klines(symbol, interval):
 
         df[col] = df[col].astype(float)
 
+    KLINE_CACHE[key] = {
+
+        "time": now,
+
+        "data": df
+    }
+
     return df
 
 # =========================
-# MTF ANALYSIS
+# TIMEFRAME ANALYSIS
 # =========================
 def analyze_timeframe(symbol, timeframe):
 
@@ -259,16 +268,39 @@ def analyze_timeframe(symbol, timeframe):
             14
         ).rsi()
 
+        macd = MACD(close)
+
+        macd_line = macd.macd()
+        signal_line = macd.macd_signal()
+
         bullish = (
+
             ema21.iloc[-1] >
             ema200.iloc[-1]
-            and rsi.iloc[-1] > 50
+
+            and
+
+            rsi.iloc[-1] > 50
+
+            and
+
+            macd_line.iloc[-1] >
+            signal_line.iloc[-1]
         )
 
         bearish = (
+
             ema21.iloc[-1] <
             ema200.iloc[-1]
-            and rsi.iloc[-1] < 50
+
+            and
+
+            rsi.iloc[-1] < 50
+
+            and
+
+            macd_line.iloc[-1] <
+            signal_line.iloc[-1]
         )
 
         if bullish:
@@ -320,11 +352,18 @@ def signal(symbol):
             14
         ).rsi()
 
+        macd = MACD(close)
+
+        macd_line = macd.macd()
+        signal_line = macd.macd_signal()
+
         atr = AverageTrueRange(
+
             high,
             low,
             close,
             14
+
         ).average_true_range()
 
         avg_volume = (
@@ -396,10 +435,12 @@ def signal(symbol):
         )
 
         # =========================
-        # MULTI TIMEFRAME CHECK
+        # MULTI TIMEFRAME
         # =========================
         mtf_bullish = 0
         mtf_bearish = 0
+
+        tf_map = {}
 
         for tf in TIMEFRAMES:
 
@@ -407,6 +448,8 @@ def signal(symbol):
                 symbol,
                 tf
             )
+
+            tf_map[tf] = result
 
             if result == "BULLISH":
                 mtf_bullish += 1
@@ -424,34 +467,46 @@ def signal(symbol):
         elif mtf_bearish > mtf_bullish:
             mtf_status = "BEARISH"
 
+        # =========================
+        # SCORE
+        # =========================
         long_score = 0
         short_score = 0
 
         if bullish_trend:
-            long_score += 25
+            long_score += 20
 
         if bearish_trend:
-            short_score += 25
+            short_score += 20
 
-        if rsi.iloc[-1] > 50:
-            long_score += 25
+        if rsi.iloc[-1] > 55:
+            long_score += 15
 
-        if rsi.iloc[-1] < 50:
-            short_score += 25
+        if rsi.iloc[-1] < 45:
+            short_score += 15
 
         if good_volume:
-            long_score += 25
-            short_score += 25
+            long_score += 15
+            short_score += 15
 
         if bullish_reject:
-            long_score += 25
+            long_score += 10
 
         if bearish_reject:
-            short_score += 25
+            short_score += 10
 
-        # =========================
-        # MTF BOOST SCORE
-        # =========================
+        if macd_line.iloc[-1] > signal_line.iloc[-1]:
+            long_score += 15
+
+        if macd_line.iloc[-1] < signal_line.iloc[-1]:
+            short_score += 15
+
+        if structure == "BREAKOUT":
+            long_score += 10
+
+        if structure == "BREAKDOWN":
+            short_score += 10
+
         long_score += (
             mtf_bullish * 5
         )
@@ -460,15 +515,31 @@ def signal(symbol):
             mtf_bearish * 5
         )
 
+        ai_confidence = max(
+            long_score,
+            short_score
+        )
+
+        if ai_confidence > 100:
+            ai_confidence = 100
+
         sig = "NONE"
 
         if (
 
             long_score >= 85
-            and not_too_far
-            and atr_percent > 0.05
-            and mtf_bullish >= 5
 
+            and
+
+            not_too_far
+
+            and
+
+            atr_percent > 0.05
+
+            and
+
+            mtf_bullish >= 5
         ):
 
             sig = "LONG"
@@ -476,10 +547,18 @@ def signal(symbol):
         elif (
 
             short_score >= 85
-            and not_too_far
-            and atr_percent > 0.05
-            and mtf_bearish >= 5
 
+            and
+
+            not_too_far
+
+            and
+
+            atr_percent > 0.05
+
+            and
+
+            mtf_bearish >= 5
         ):
 
             sig = "SHORT"
@@ -493,6 +572,8 @@ def signal(symbol):
             "price": current_price,
 
             "rsi": rsi.iloc[-1],
+
+            "macd": macd_line.iloc[-1],
 
             "volume_ratio": volume_ratio,
 
@@ -512,7 +593,11 @@ def signal(symbol):
 
             "mtf_total": mtf_total,
 
-            "mtf_status": mtf_status
+            "mtf_status": mtf_status,
+
+            "ai_confidence": ai_confidence,
+
+            "timeframes": tf_map
         }
 
     except Exception as e:
@@ -524,12 +609,14 @@ def signal(symbol):
         return None
 
 # =========================
-# SCREENER
+# MARKET SCAN
 # =========================
 def scan_market():
 
     best_coin = None
     best_score = 0
+
+    screener = []
 
     console.print(
         "[cyan]SCANNING MARKET...[/cyan]"
@@ -542,6 +629,21 @@ def scan_market():
         if not data:
             continue
 
+        screener.append({
+
+            "symbol": coin,
+
+            "signal": data["signal"],
+
+            "long_score": data["long_score"],
+
+            "short_score": data["short_score"],
+
+            "trend": data["trend"],
+
+            "confidence": data["ai_confidence"]
+        })
+
         score = max(
             data["long_score"],
             data["short_score"]
@@ -551,25 +653,26 @@ def scan_market():
 
             f"{coin} | "
             f"{data['signal']} | "
-            f"LONG {data['long_score']} | "
-            f"SHORT {data['short_score']} | "
-            f"MTF {data['mtf_status']} | "
-            f"BULL {data['mtf_bullish']} | "
-            f"BEAR {data['mtf_bearish']}"
+            f"CONF {data['ai_confidence']}%"
         )
 
         if (
+
             data["signal"] != "NONE"
-            and score > best_score
+
+            and
+
+            score > best_score
         ):
 
             best_score = score
+
             best_coin = data
 
-    return best_coin
+    return best_coin, screener
 
 # =========================
-# GET POSITION
+# POSITION
 # =========================
 def get_position(symbol):
 
@@ -586,6 +689,7 @@ def get_position(symbol):
             )
 
             if abs(amt) > 0.000001:
+
                 return p
 
     except:
@@ -594,7 +698,7 @@ def get_position(symbol):
     return None
 
 # =========================
-# PNL
+# UNREALIZED PNL
 # =========================
 def unrealized_pnl(symbol):
 
@@ -608,428 +712,115 @@ def unrealized_pnl(symbol):
     )
 
 # =========================
-# LOT FILTER
-# =========================
-def get_lot_filters(symbol):
-
-    info = client.futures_exchange_info()
-
-    for s in info["symbols"]:
-
-        if s["symbol"] == symbol:
-
-            for f in s["filters"]:
-
-                if f["filterType"] == "LOT_SIZE":
-
-                    return (
-                        float(f["stepSize"]),
-                        float(f["minQty"])
-                    )
-
-    return 0.001, 0.001
-
-# =========================
-# SAFE QTY
-# =========================
-def safe_qty(qty, step, min_qty):
-
-    precision = max(
-        0,
-        int(round(-math.log(step, 10), 0))
-    )
-
-    qty = round(qty, precision)
-
-    qty = math.floor(qty / step) * step
-
-    if qty < min_qty:
-        qty = min_qty
-
-    return float(f"{qty:.8f}")
-
-# =========================
-# OPEN POSITION
-# =========================
-def open_position(symbol, side, qty):
-
-    try:
-
-        order = client.futures_create_order(
-
-            symbol=symbol,
-
-            side=(
-                SIDE_BUY
-                if side == "LONG"
-                else SIDE_SELL
-            ),
-
-            type=ORDER_TYPE_MARKET,
-
-            quantity=qty
-        )
-
-        price = float(
-            client.futures_mark_price(
-                symbol=symbol
-            )["markPrice"]
-        )
-
-        if side == "LONG":
-
-            tp_price = (
-                price * (1 + TP_ROI)
-            )
-
-            sl_price = (
-                price * (1 - SL_ROI)
-            )
-
-            stop_side = SIDE_SELL
-
-        else:
-
-            tp_price = (
-                price * (1 - TP_ROI)
-            )
-
-            sl_price = (
-                price * (1 + SL_ROI)
-            )
-
-            stop_side = SIDE_BUY
-
-        state["tp_price"] = tp_price
-        state["sl_price"] = sl_price
-        state["trail"] = TRAIL_ROI
-
-        client.futures_create_order(
-
-            symbol=symbol,
-
-            side=stop_side,
-
-            type="TAKE_PROFIT_MARKET",
-
-            stopPrice=round(tp_price, 6),
-
-            closePosition=True
-        )
-
-        client.futures_create_order(
-
-            symbol=symbol,
-
-            side=stop_side,
-
-            type="STOP_MARKET",
-
-            stopPrice=round(sl_price, 6),
-
-            closePosition=True
-        )
-
-        console.print(
-            f"[green]ENTRY {side} {symbol} SUCCESS[/green]"
-        )
-
-        return order
-
-    except Exception as e:
-
-        console.print(
-            f"[red]ENTRY ERROR:[/red] {e}"
-        )
-
-    return None
-
-# =========================
-# UPDATE DASHBOARD
-# =========================
-def update_dashboard(data):
-
-    pnl = 0
-
-    if state["symbol"]:
-
-        pnl = unrealized_pnl(
-            state["symbol"]
-        )
-
-    try:
-
-        balance_info = client.futures_account_balance()
-
-        usdt_balance = 0
-
-        for b in balance_info:
-
-            if b["asset"] == "USDT":
-
-                usdt_balance = float(
-                    b["balance"]
-                )
-
-    except:
-
-        usdt_balance = 0
-
-    winrate = 0
-
-    if state["trade_count"] > 0:
-
-        winrate = (
-            state["win"] /
-            state["trade_count"]
-        ) * 100
-
-    web_data.update({
-
-        "symbol": data["symbol"],
-
-        "signal": data["signal"],
-
-        "price": data["price"],
-
-        "rsi": data["rsi"],
-
-        "volume_ratio": data["volume_ratio"],
-
-        "atr_percent": data["atr_percent"],
-
-        "trend": data["trend"],
-
-        "structure": data["structure"],
-
-        "long_score": data["long_score"],
-
-        "short_score": data["short_score"],
-
-        "mtf_bullish": data["mtf_bullish"],
-
-        "mtf_bearish": data["mtf_bearish"],
-
-        "mtf_total": data["mtf_total"],
-
-        "mtf_status": data["mtf_status"],
-
-        "position": (
-            state["side"]
-            or "NONE"
-        ),
-
-        "entry": state["entry"],
-
-        "tp_price": state["tp_price"],
-
-        "sl_price": state["sl_price"],
-
-        "trail": state["trail"],
-
-        "pnl": pnl,
-
-        "pnl_idr": pnl * USD_IDR,
-
-        "balance": usdt_balance,
-
-        "trade_count": state["trade_count"],
-
-        "winrate": round(winrate, 2)
-    })
-
-    socketio.emit(
-        "update",
-        web_data
-    )
-
-# =========================
-# TERMINAL DASHBOARD
-# =========================
-def terminal_dashboard(data):
-
-    console.clear()
-
-    table = Table(
-        title="MULTI TF MARKET BOT",
-        box=box.DOUBLE_EDGE
-    )
-
-    table.add_column("Metric")
-    table.add_column("Value")
-
-    table.add_row(
-        "Symbol",
-        str(data["symbol"])
-    )
-
-    table.add_row(
-        "Signal",
-        str(data["signal"])
-    )
-
-    table.add_row(
-        "Trend",
-        str(data["trend"])
-    )
-
-    table.add_row(
-        "Structure",
-        str(data["structure"])
-    )
-
-    table.add_row(
-        "Price",
-        f'{data["price"]:.4f}'
-    )
-
-    table.add_row(
-        "RSI",
-        f'{data["rsi"]:.2f}'
-    )
-
-    table.add_row(
-        "Long Score",
-        str(data["long_score"])
-    )
-
-    table.add_row(
-        "Short Score",
-        str(data["short_score"])
-    )
-
-    table.add_row(
-        "MTF Bullish",
-        str(data["mtf_bullish"])
-    )
-
-    table.add_row(
-        "MTF Bearish",
-        str(data["mtf_bearish"])
-    )
-
-    table.add_row(
-        "MTF Status",
-        str(data["mtf_status"])
-    )
-
-    table.add_row(
-        "Position",
-        str(state["side"])
-    )
-
-    table.add_row(
-        "PNL",
-        f'{web_data["pnl"]:.4f}'
-    )
-
-    console.print(table)
-
-# =========================
 # MAIN LOOP
 # =========================
-def run_bot():
+def start_bot():
 
     while True:
 
         try:
 
-            current_position = None
-
-            if state["symbol"]:
-
-                current_position = get_position(
-                    state["symbol"]
-                )
-
-            if current_position:
-
-                console.print(
-                    "[yellow]POSITION STILL OPEN[/yellow]"
-                )
-
-                socketio.sleep(5)
-                continue
-
-            best = scan_market()
+            best, screener = scan_market()
 
             if not best:
+
+                web_data["screener"] = screener
 
                 console.print(
                     "[yellow]NO SIGNAL FOUND[/yellow]"
                 )
 
-                socketio.sleep(10)
+                time.sleep(10)
+
                 continue
 
-            update_dashboard(best)
+            web_data.update({
 
-            terminal_dashboard(best)
+                "symbol": best["symbol"],
 
-            symbol = best["symbol"]
+                "signal": best["signal"],
 
-            step, min_qty = get_lot_filters(
-                symbol
+                "price": best["price"],
+
+                "rsi": best["rsi"],
+
+                "macd": best["macd"],
+
+                "volume_ratio": best["volume_ratio"],
+
+                "atr_percent": best["atr_percent"],
+
+                "trend": best["trend"],
+
+                "structure": best["structure"],
+
+                "long_score": best["long_score"],
+
+                "short_score": best["short_score"],
+
+                "mtf_bullish": best["mtf_bullish"],
+
+                "mtf_bearish": best["mtf_bearish"],
+
+                "mtf_total": best["mtf_total"],
+
+                "mtf_status": best["mtf_status"],
+
+                "ai_confidence": best["ai_confidence"],
+
+                "timeframes": best["timeframes"],
+
+                "screener": screener
+            })
+
+            console.clear()
+
+            table = Table(
+                title="AI MULTI TF BOT",
+                box=box.DOUBLE_EDGE
             )
 
-            qty = (
-                ORDER_USDT *
-                LEVERAGE
-            ) / best["price"]
+            table.add_column("Metric")
+            table.add_column("Value")
 
-            qty = safe_qty(
-                qty,
-                step,
-                min_qty
+            table.add_row(
+                "Symbol",
+                best["symbol"]
             )
 
-            order = open_position(
-
-                symbol,
-
-                best["signal"],
-
-                qty
+            table.add_row(
+                "Signal",
+                best["signal"]
             )
 
-            if order:
+            table.add_row(
+                "Trend",
+                best["trend"]
+            )
 
-                state["symbol"] = symbol
+            table.add_row(
+                "AI Confidence",
+                f'{best["ai_confidence"]}%'
+            )
 
-                state["side"] = best["signal"]
+            table.add_row(
+                "MTF Bull",
+                str(best["mtf_bullish"])
+            )
 
-                state["entry"] = best["price"]
+            table.add_row(
+                "MTF Bear",
+                str(best["mtf_bearish"])
+            )
 
-                state["qty"] = qty
+            console.print(table)
 
-                state["trade_count"] += 1
-
-            socketio.sleep(15)
+            time.sleep(15)
 
         except Exception as e:
 
             console.print(
-                f"[red]MAIN LOOP ERROR:[/red] {e}"
+                f"[red]BOT ERROR:[/red] {e}"
             )
 
-            socketio.sleep(5)
-
-# =========================
-# START
-# =========================
-if __name__ == "__main__":
-
-    socketio.start_background_task(
-        run_bot
-    )
-
-    socketio.run(
-
-        app,
-
-        host="0.0.0.0",
-
-        port=8080,
-
-        debug=False
-)
+            time.sleep(5)
