@@ -83,17 +83,11 @@ TIMEFRAMES = [
 # =========================
 SCAN_COINS = [
 
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
     "XRPUSDT",
     "DOGEUSDT",
-    "BNBUSDT",
     "ADAUSDT",
     "LINKUSDT",
     "AVAXUSDT",
-    "LTCUSDT",
-    "DOTUSDT",
     "NEARUSDT",
     "BEATUSDT"
 ]
