@@ -159,7 +159,7 @@ def analyze_multi_tf():
 
     long_valid = (
 
-        bullish_tf >= 5
+        bullish_tf >= 4
 
         and
 
@@ -167,11 +167,11 @@ def analyze_multi_tf():
 
         and
 
-        confidence >= 60
+        confidence >= 40
 
         and
 
-        resistance_distance > 0.5
+        resistance_distance > 0.2
 
         and
 
@@ -193,7 +193,7 @@ def analyze_multi_tf():
 
     short_valid = (
 
-        bearish_tf >= 5
+        bearish_tf >= 4
 
         and
 
@@ -201,11 +201,11 @@ def analyze_multi_tf():
 
         and
 
-        confidence >= 60
+        confidence >= 40
 
         and
 
-        support_distance > 0.5
+        support_distance > 0.2
 
         and
 
