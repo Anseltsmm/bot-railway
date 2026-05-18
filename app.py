@@ -5,7 +5,7 @@ import time
 import os
 import pandas as pd
 
-from trader import *
+from core.trader import *
 from strategy import analyze
 from state import bot_state
 from config import *
