@@ -1,5 +1,6 @@
 # =========================
 # bot.py
+# FULL UPDATED VERSION
 # =========================
 
 import eventlet
@@ -69,8 +70,10 @@ TIMEFRAMES = [
     "5m",
     "15m",
     "1h",
+    "2h",
     "4h",
-    "1d"
+    "1d",
+    "1w"
 ]
 
 # =========================
@@ -90,8 +93,8 @@ SCAN_COINS = [
     "LTCUSDT",
     "DOTUSDT",
     "NEARUSDT",
+    "WIFUSDT",
     "BEATUSDT"
-
 ]
 
 console = Console()
@@ -103,6 +106,23 @@ client = Client(
     API_KEY,
     API_SECRET
 )
+
+# =========================
+# TEST CONNECTION
+# =========================
+try:
+
+    client.futures_account_balance()
+
+    console.print(
+        "[green]BINANCE CONNECTED[/green]"
+    )
+
+except Exception as e:
+
+    console.print(
+        f"[red]BINANCE FAILED:[/red] {e}"
+    )
 
 # =========================
 # STATE
@@ -282,7 +302,12 @@ def analyze_timeframe(symbol, timeframe):
 
         return "SIDEWAYS"
 
-    except:
+    except Exception as e:
+
+        console.print(
+            f"[red]TF ERROR {symbol} {timeframe}:[/red] {e}"
+        )
+
         return "SIDEWAYS"
 
 # =========================
@@ -494,7 +519,7 @@ def signal(symbol):
 
             and
 
-            mtf_bullish >= 4
+            mtf_bullish >= 5
 
             and
 
@@ -514,7 +539,7 @@ def signal(symbol):
 
             and
 
-            mtf_bearish >= 4
+            mtf_bearish >= 5
 
             and
 
@@ -600,8 +625,11 @@ def get_position(symbol):
             if abs(amt) > 0.000001:
                 return p
 
-    except:
-        pass
+    except Exception as e:
+
+        console.print(
+            f"[red]POSITION ERROR:[/red] {e}"
+        )
 
     return None
 
@@ -632,6 +660,9 @@ def update_dashboard(data, screener):
             state["symbol"]
         )
 
+    # =========================
+    # BALANCE
+    # =========================
     try:
 
         balance_info = client.futures_account_balance()
@@ -646,10 +677,17 @@ def update_dashboard(data, screener):
                     b["balance"]
                 )
 
-    except:
+    except Exception as e:
+
+        console.print(
+            f"[red]BALANCE ERROR:[/red] {e}"
+        )
 
         usdt_balance = 0
 
+    # =========================
+    # WINRATE
+    # =========================
     winrate = 0
 
     if state["trade_count"] > 0:
@@ -661,6 +699,9 @@ def update_dashboard(data, screener):
 
         ) * 100
 
+    # =========================
+    # UPDATE WEB DATA
+    # =========================
     web_data.update({
 
         "symbol": data["symbol"],
@@ -708,17 +749,11 @@ def update_dashboard(data, screener):
 
         "trail": state["trail"],
 
-        "pnl": round(pnl, 4),
+        "pnl": pnl,
 
-        "pnl_idr": round(
-            pnl * USD_IDR,
-            0
-        ),
+        "pnl_idr": pnl * USD_IDR,
 
-        "balance": round(
-            usdt_balance,
-            2
-        ),
+        "balance": usdt_balance,
 
         "trade_count": state["trade_count"],
 
@@ -736,7 +771,7 @@ def update_dashboard(data, screener):
     )
 
 # =========================
-# TERMINAL
+# TERMINAL DASHBOARD
 # =========================
 def terminal_dashboard(data):
 
@@ -760,7 +795,7 @@ def terminal_dashboard(data):
     console.print(table)
 
 # =========================
-# BOT LOOP
+# MAIN BOT LOOP
 # =========================
 def start_bot():
 
