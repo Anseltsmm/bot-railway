@@ -63,6 +63,12 @@ def trading_loop():
             update_pnl()
 
             # =========================
+# UPDATE WINRATE
+# =========================
+
+update_trade_stats()
+
+            # =========================
             # ENTRY LOGIC
             # =========================
 
