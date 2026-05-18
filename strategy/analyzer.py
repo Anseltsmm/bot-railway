@@ -33,7 +33,7 @@ def analyze_multi_tf():
     # MAIN TF DATA
     # =========================================
 
-    df = get_tf_dataframe("5m")
+    df = get_tf_dataframe("1m")
 
     last = df.iloc[-1]
 
