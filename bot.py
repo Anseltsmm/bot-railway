@@ -90,7 +90,7 @@ SCAN_COINS = [
     "LTCUSDT",
     "DOTUSDT",
     "NEARUSDT",
-    "WIFUSDT"
+    "BEATUSDT"
 
 ]
 
