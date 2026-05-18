@@ -1,3 +1,7 @@
+# =========================
+# bot.py
+# =========================
+
 import eventlet
 eventlet.monkey_patch()
 
@@ -58,17 +62,15 @@ USD_IDR = int(
 )
 
 # =========================
-# MULTI TIMEFRAME
+# MULTI TF
 # =========================
 TIMEFRAMES = [
     "1m",
     "5m",
     "15m",
     "1h",
-    "2h",
     "4h",
-    "1d",
-    "1w"
+    "1d"
 ]
 
 # =========================
@@ -492,7 +494,7 @@ def signal(symbol):
 
             and
 
-            mtf_bullish >= 5
+            mtf_bullish >= 4
 
             and
 
@@ -512,7 +514,7 @@ def signal(symbol):
 
             and
 
-            mtf_bearish >= 5
+            mtf_bearish >= 4
 
             and
 
@@ -618,7 +620,7 @@ def unrealized_pnl(symbol):
     )
 
 # =========================
-# DASHBOARD
+# UPDATE DASHBOARD
 # =========================
 def update_dashboard(data, screener):
 
@@ -706,11 +708,17 @@ def update_dashboard(data, screener):
 
         "trail": state["trail"],
 
-        "pnl": pnl,
+        "pnl": round(pnl, 4),
 
-        "pnl_idr": pnl * USD_IDR,
+        "pnl_idr": round(
+            pnl * USD_IDR,
+            0
+        ),
 
-        "balance": usdt_balance,
+        "balance": round(
+            usdt_balance,
+            2
+        ),
 
         "trade_count": state["trade_count"],
 
@@ -752,9 +760,9 @@ def terminal_dashboard(data):
     console.print(table)
 
 # =========================
-# MAIN LOOP
+# BOT LOOP
 # =========================
-def run_bot():
+def start_bot():
 
     while True:
 
