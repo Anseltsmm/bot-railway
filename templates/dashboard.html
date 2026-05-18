@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>BINANCE FUTURES DASHBOARD BOT</title>
+<title>BINANCE FUTURES AI SCREENER BOT</title>
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -98,6 +98,10 @@ color:#38bdf8;
 color:#fb923c;
 }
 
+.purple{
+color:#c084fc;
+}
+
 .chart-box{
 margin-top:30px;
 background:#0f172a;
@@ -131,6 +135,49 @@ color:#ef4444;
 color:#facc15;
 }
 
+.screener-box{
+margin-top:30px;
+background:#0f172a;
+padding:20px;
+border-radius:20px;
+border:1px solid #1e293b;
+}
+
+.screener-table{
+width:100%;
+border-collapse:collapse;
+margin-top:10px;
+}
+
+.screener-table th{
+padding:12px;
+text-align:left;
+background:#111827;
+color:#94a3b8;
+font-size:14px;
+}
+
+.screener-table td{
+padding:12px;
+border-top:1px solid #1e293b;
+font-size:14px;
+}
+
+.long{
+color:#22c55e;
+font-weight:bold;
+}
+
+.short{
+color:#ef4444;
+font-weight:bold;
+}
+
+.none{
+color:#facc15;
+font-weight:bold;
+}
+
 </style>
 </head>
 
@@ -139,11 +186,11 @@ color:#facc15;
 <div class="header">
 
 <div class="title">
-🚀 BINANCE FUTURES BOT V.1
+🚀 BINANCE FUTURES AI SCREENER BOT
 </div>
 
 <div class="status" id="status">
-LIVE
+LIVE SCANNING
 </div>
 
 </div>
@@ -151,7 +198,7 @@ LIVE
 <div class="grid">
 
 <div class="card">
-<div class="label">PAIR</div>
+<div class="label">ACTIVE PAIR</div>
 <div class="value yellow" id="symbol">-</div>
 </div>
 
@@ -176,7 +223,7 @@ LIVE
 </div>
 
 <div class="card">
-<div class="label">HARGA MASUK</div>
+<div class="label">ENTRY PRICE</div>
 <div class="value" id="entry">0</div>
 </div>
 
@@ -201,13 +248,13 @@ LIVE
 </div>
 
 <div class="card">
-<div class="label">U PNL IDR</div>
+<div class="label">UPNL IDR</div>
 <div class="value" id="pnl_idr">0</div>
 </div>
 
 <div class="card">
 <div class="label">RSI</div>
-<div class="value" id="rsi">0</div>
+<div class="value purple" id="rsi">0</div>
 </div>
 
 <div class="card">
@@ -252,20 +299,66 @@ LIVE
 
 </div>
 
+<!-- ===================== -->
+<!-- COIN SCREENER -->
+<!-- ===================== -->
+
+<div class="screener-box">
+
+<div class="chart-title">
+🔥 MARKET SCREENER
+</div>
+
+<table class="screener-table">
+
+<thead>
+
+<tr>
+<th>PAIR</th>
+<th>SIGNAL</th>
+<th>LONG</th>
+<th>SHORT</th>
+<th>TREND</th>
+</tr>
+
+</thead>
+
+<tbody id="screenerBody">
+
+<tr>
+<td colspan="5">
+Waiting market scan...
+</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+<!-- ===================== -->
+<!-- PNL CHART -->
+<!-- ===================== -->
+
 <div class="chart-box">
 
 <div class="chart-title">
-📈 Realtime UNREALIZED PNL Chart
+📈 REALTIME PNL
 </div>
 
 <canvas id="pnlChart"></canvas>
 
 </div>
 
+<!-- ===================== -->
+<!-- TRADINGVIEW -->
+<!-- ===================== -->
+
 <div class="chart-box">
 
 <div class="chart-title">
-📊 Live TradingView Chart
+📊 LIVE CHART
 </div>
 
 <div id="tradingview_chart"></div>
@@ -273,44 +366,46 @@ LIVE
 </div>
 
 <div class="footer">
-Di Buat Dengan ♥️, BY ANSELTSM ,SEGALA RESIKO DI TANGGUNG SENDIRI !
+AUTO AI SCREENER • MARKET STRUCTURE • EMA TREND • SMART SCALPING
 </div>
 
 <script>
 
 const socket = io({
-    transports: ['websocket'],
-    reconnection: true
+    transports:['websocket'],
+    reconnection:true
 });
 
 const labels = [];
 const pnlData = [];
 
 const ctx =
-document.getElementById('pnlChart');
+document.getElementById(
+    'pnlChart'
+);
 
 const chart = new Chart(ctx, {
 
-    type: 'line',
+    type:'line',
 
-    data: {
+    data:{
 
-        labels: labels,
+        labels:labels,
 
-        datasets: [{
+        datasets:[{
 
-            label: 'Realtime PNL',
+            label:'Realtime PNL',
 
-            data: pnlData,
+            data:pnlData,
 
-            borderWidth: 3,
+            borderWidth:3,
 
-            tension: 0.4
+            tension:0.4
 
         }]
     },
 
-    options: {
+    options:{
 
         responsive:true,
 
@@ -339,80 +434,146 @@ const chart = new Chart(ctx, {
     }
 });
 
-new TradingView.widget({
+let tvWidget = null;
 
-    width: "100%",
-    height: 550,
-    symbol: "BINANCE:DOGEUSDT",
-    interval: "1",
-    timezone: "Asia/Jakarta",
-    theme: "dark",
-    style: "1",
-    locale: "en",
-    toolbar_bg: "#0f172a",
-    enable_publishing: false,
-    hide_top_toolbar: false,
-    save_image: false,
-    container_id: "tradingview_chart"
+function loadTradingView(symbol){
 
-});
+    document.getElementById(
+        'tradingview_chart'
+    ).innerHTML = "";
+
+    tvWidget = new TradingView.widget({
+
+        width:"100%",
+        height:550,
+
+        symbol:"BINANCE:" + symbol,
+
+        interval:"5",
+
+        timezone:"Asia/Jakarta",
+
+        theme:"dark",
+
+        style:"1",
+
+        locale:"en",
+
+        toolbar_bg:"#0f172a",
+
+        enable_publishing:false,
+
+        hide_top_toolbar:false,
+
+        save_image:false,
+
+        container_id:"tradingview_chart"
+    });
+}
+
+loadTradingView("BTCUSDT");
 
 socket.on('update', function(data){
 
     // =====================
     // BASIC
     // =====================
-    document.getElementById('symbol').innerText =
+
+    document.getElementById(
+        'symbol'
+    ).innerText =
         data.symbol || '-';
 
-    document.getElementById('price').innerText =
-        Number(data.price || 0).toFixed(4);
+    document.getElementById(
+        'price'
+    ).innerText =
+        Number(
+            data.price || 0
+        ).toFixed(4);
 
-    document.getElementById('balance').innerText =
-        '$' + Number(data.balance || 0).toFixed(2);
+    document.getElementById(
+        'balance'
+    ).innerText =
+        '$' +
+        Number(
+            data.balance || 0
+        ).toFixed(2);
 
-    document.getElementById('position').innerText =
+    document.getElementById(
+        'position'
+    ).innerText =
         data.position || 'NONE';
 
-    document.getElementById('entry').innerText =
-        Number(data.entry || 0).toFixed(4);
+    document.getElementById(
+        'entry'
+    ).innerText =
+        Number(
+            data.entry || 0
+        ).toFixed(4);
 
     // =====================
-    // TP / SL
+    // TP SL
     // =====================
-    document.getElementById('sl').innerText =
-        Number(data.sl_price || 0).toFixed(4);
 
-    document.getElementById('tp').innerText =
-        Number(data.tp_price || 0).toFixed(4);
+    document.getElementById(
+        'sl'
+    ).innerText =
+        Number(
+            data.sl_price || 0
+        ).toFixed(4);
 
-    document.getElementById('trail').innerText =
-        Number(data.trail || 0).toFixed(4);
+    document.getElementById(
+        'tp'
+    ).innerText =
+        Number(
+            data.tp_price || 0
+        ).toFixed(4);
+
+    document.getElementById(
+        'trail'
+    ).innerText =
+        Number(
+            data.trail || 0
+        ).toFixed(2) + '%';
 
     // =====================
     // PNL
     // =====================
-    document.getElementById('pnl').innerText =
-        Number(data.pnl || 0).toFixed(4);
 
-    document.getElementById('pnl_idr').innerText =
+    document.getElementById(
+        'pnl'
+    ).innerText =
+        Number(
+            data.pnl || 0
+        ).toFixed(4);
+
+    document.getElementById(
+        'pnl_idr'
+    ).innerText =
         'Rp ' +
-        Number(data.pnl_idr || 0)
-        .toLocaleString();
+        Number(
+            data.pnl_idr || 0
+        ).toLocaleString();
 
     // =====================
     // RSI
     // =====================
-    document.getElementById('rsi').innerText =
-        Number(data.rsi || 0).toFixed(2);
+
+    document.getElementById(
+        'rsi'
+    ).innerText =
+        Number(
+            data.rsi || 0
+        ).toFixed(2);
 
     // =====================
     // TREND
     // =====================
+
     const trendEl =
-        document.getElementById(
-            'market_trend'
-        );
+    document.getElementById(
+        'market_trend'
+    );
 
     trendEl.innerText =
         data.trend || '-';
@@ -425,49 +586,56 @@ socket.on('update', function(data){
 
     if(data.trend === 'BULLISH'){
 
-        trendEl.classList.add('green');
+        trendEl.classList.add(
+            'green'
+        );
 
-    }
+    }else if(
+        data.trend === 'BEARISH'
+    ){
 
-    else if(data.trend === 'BEARISH'){
+        trendEl.classList.add(
+            'red'
+        );
 
-        trendEl.classList.add('red');
+    }else{
 
-    }
-
-    else{
-
-        trendEl.classList.add('yellow');
-
+        trendEl.classList.add(
+            'yellow'
+        );
     }
 
     // =====================
     // STRUCTURE
     // =====================
-    const structureEl =
-        document.getElementById(
-            'market_structure'
-        );
 
-    structureEl.innerText =
+    document.getElementById(
+        'market_structure'
+    ).innerText =
         data.structure || '-';
 
     // =====================
-    // SCORE
+    // SCORES
     // =====================
+
     document.getElementById(
         'long_score'
     ).innerText =
-        Number(data.long_score || 0);
+        Number(
+            data.long_score || 0
+        );
 
     document.getElementById(
         'short_score'
     ).innerText =
-        Number(data.short_score || 0);
+        Number(
+            data.short_score || 0
+        );
 
     // =====================
     // MARKET
     // =====================
+
     document.getElementById(
         'volume_ratio'
     ).innerText =
@@ -485,6 +653,7 @@ socket.on('update', function(data){
     // =====================
     // WINRATE
     // =====================
+
     document.getElementById(
         'winrate'
     ).innerText =
@@ -502,10 +671,11 @@ socket.on('update', function(data){
     // =====================
     // SIGNAL
     // =====================
+
     const signalEl =
-        document.getElementById(
-            'signal'
-        );
+    document.getElementById(
+        'signal'
+    );
 
     signalEl.innerText =
         data.signal || 'NONE';
@@ -522,31 +692,29 @@ socket.on('update', function(data){
             'signal-long'
         );
 
-    }
-
-    else if(data.signal === 'SHORT'){
+    }else if(
+        data.signal === 'SHORT'
+    ){
 
         signalEl.classList.add(
             'signal-short'
         );
 
-    }
-
-    else{
+    }else{
 
         signalEl.classList.add(
             'signal-none'
         );
-
     }
 
     // =====================
     // PNL COLOR
     // =====================
+
     const pnlEl =
-        document.getElementById(
-            'pnl'
-        );
+    document.getElementById(
+        'pnl'
+    );
 
     pnlEl.classList.remove(
         'green',
@@ -559,36 +727,98 @@ socket.on('update', function(data){
             'green'
         );
 
-    }
-
-    else{
+    }else{
 
         pnlEl.classList.add(
             'red'
         );
-
     }
 
     // =====================
-    // REALTIME CHART
+    // CHART
     // =====================
+
     labels.push(
         new Date()
         .toLocaleTimeString()
     );
 
     pnlData.push(
-        Number(data.pnl || 0)
+        Number(
+            data.pnl || 0
+        )
     );
 
     if(labels.length > 50){
 
         labels.shift();
         pnlData.shift();
-
     }
 
     chart.update('none');
+
+    // =====================
+    // UPDATE TV CHART
+    // =====================
+
+    if(data.symbol){
+
+        loadTradingView(
+            data.symbol
+        );
+    }
+
+    // =====================
+    // SCREENER TABLE
+    // =====================
+
+    if(data.screener){
+
+        let html = "";
+
+        data.screener.forEach(item => {
+
+            let cls = "none";
+
+            if(item.signal === "LONG"){
+                cls = "long";
+            }
+
+            if(item.signal === "SHORT"){
+                cls = "short";
+            }
+
+            html += `
+
+            <tr>
+
+            <td>${item.symbol}</td>
+
+            <td class="${cls}">
+            ${item.signal}
+            </td>
+
+            <td>
+            ${item.long_score}
+            </td>
+
+            <td>
+            ${item.short_score}
+            </td>
+
+            <td>
+            ${item.trend}
+            </td>
+
+            </tr>
+
+            `;
+        });
+
+        document.getElementById(
+            'screenerBody'
+        ).innerHTML = html;
+    }
 
 });
 
