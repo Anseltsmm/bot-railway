@@ -1,13 +1,11 @@
-# =========================
-# bot.py
-# =========================
+import eventlet
+eventlet.monkey_patch()
 
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 import os
 import math
-import time
 import pandas as pd
 
 from dotenv import load_dotenv
@@ -16,12 +14,14 @@ from binance.client import Client
 from binance.enums import *
 
 from ta.momentum import RSIIndicator
-from ta.trend import EMAIndicator, MACD
+from ta.trend import EMAIndicator
 from ta.volatility import AverageTrueRange
 
 from rich.console import Console
 from rich.table import Table
 from rich import box
+
+from extensions import socketio
 
 # =========================
 # LOAD ENV
@@ -33,20 +33,34 @@ API_SECRET = os.getenv("BINANCE_API_SECRET")
 
 INTERVAL = os.getenv("INTERVAL", "5m")
 
-LEVERAGE = int(os.getenv("LEVERAGE", 10))
-ORDER_USDT = float(os.getenv("ORDER_USDT", 1.2))
+LEVERAGE = int(
+    os.getenv("LEVERAGE", 10)
+)
 
-TP_ROI = float(os.getenv("TP_ROI", 0.02))
-SL_ROI = float(os.getenv("SL_ROI", 0.01))
-TRAIL_ROI = float(os.getenv("TRAIL_ROI", 0.8))
+ORDER_USDT = float(
+    os.getenv("ORDER_USDT", 1.2)
+)
 
-USD_IDR = int(os.getenv("USD_IDR", 17438))
+TP_ROI = float(
+    os.getenv("TP_ROI", 0.02)
+)
+
+SL_ROI = float(
+    os.getenv("SL_ROI", 0.01)
+)
+
+TRAIL_ROI = float(
+    os.getenv("TRAIL_ROI", 0.8)
+)
+
+USD_IDR = int(
+    os.getenv("USD_IDR", 17438)
+)
 
 # =========================
-# TIMEFRAMES
+# MULTI TIMEFRAME
 # =========================
 TIMEFRAMES = [
-
     "1m",
     "5m",
     "15m",
@@ -73,13 +87,11 @@ SCAN_COINS = [
     "AVAXUSDT",
     "LTCUSDT",
     "DOTUSDT",
-    "WIFUSDT",
-    "NEARUSDT"
+    "NEARUSDT",
+    "WIFUSDT"
+
 ]
 
-# =========================
-# CONSOLE
-# =========================
 console = Console()
 
 # =========================
@@ -129,8 +141,6 @@ web_data = {
 
     "rsi": 0,
 
-    "macd": 0,
-
     "volume_ratio": 0,
 
     "atr_percent": 0,
@@ -143,17 +153,17 @@ web_data = {
 
     "short_score": 0,
 
+    "confidence": 0,
+
     "mtf_bullish": 0,
 
     "mtf_bearish": 0,
 
     "mtf_total": 0,
 
-    "mtf_status": "NEUTRAL",
+    "mtf_status": "NONE",
 
-    "ai_confidence": 0,
-
-    "timeframes": {},
+    "mtf": {},
 
     "position": "NONE",
 
@@ -179,28 +189,9 @@ web_data = {
 }
 
 # =========================
-# CACHE
-# =========================
-KLINE_CACHE = {}
-
-CACHE_SECONDS = 10
-
-# =========================
 # GET KLINES
 # =========================
 def get_klines(symbol, interval):
-
-    key = f"{symbol}_{interval}"
-
-    now = time.time()
-
-    if key in KLINE_CACHE:
-
-        cache_time = KLINE_CACHE[key]["time"]
-
-        if now - cache_time < CACHE_SECONDS:
-
-            return KLINE_CACHE[key]["data"]
 
     df = pd.DataFrame(
 
@@ -230,17 +221,10 @@ def get_klines(symbol, interval):
 
         df[col] = df[col].astype(float)
 
-    KLINE_CACHE[key] = {
-
-        "time": now,
-
-        "data": df
-    }
-
     return df
 
 # =========================
-# TIMEFRAME ANALYSIS
+# ANALYZE TF
 # =========================
 def analyze_timeframe(symbol, timeframe):
 
@@ -268,11 +252,6 @@ def analyze_timeframe(symbol, timeframe):
             14
         ).rsi()
 
-        macd = MACD(close)
-
-        macd_line = macd.macd()
-        signal_line = macd.macd_signal()
-
         bullish = (
 
             ema21.iloc[-1] >
@@ -281,11 +260,6 @@ def analyze_timeframe(symbol, timeframe):
             and
 
             rsi.iloc[-1] > 50
-
-            and
-
-            macd_line.iloc[-1] >
-            signal_line.iloc[-1]
         )
 
         bearish = (
@@ -296,11 +270,6 @@ def analyze_timeframe(symbol, timeframe):
             and
 
             rsi.iloc[-1] < 50
-
-            and
-
-            macd_line.iloc[-1] <
-            signal_line.iloc[-1]
         )
 
         if bullish:
@@ -352,11 +321,6 @@ def signal(symbol):
             14
         ).rsi()
 
-        macd = MACD(close)
-
-        macd_line = macd.macd()
-        signal_line = macd.macd_signal()
-
         atr = AverageTrueRange(
 
             high,
@@ -371,23 +335,28 @@ def signal(symbol):
         )
 
         volume_ratio = (
+
             volume.iloc[-1] /
             avg_volume.iloc[-1]
         )
 
         atr_percent = (
+
             atr.iloc[-1] /
             close.iloc[-1]
+
         ) * 100
 
         current_price = close.iloc[-1]
 
         bullish_trend = (
+
             ema21.iloc[-1] >
             ema200.iloc[-1]
         )
 
         bearish_trend = (
+
             ema21.iloc[-1] <
             ema200.iloc[-1]
         )
@@ -435,12 +404,12 @@ def signal(symbol):
         )
 
         # =========================
-        # MULTI TIMEFRAME
+        # MULTI TF
         # =========================
         mtf_bullish = 0
         mtf_bearish = 0
 
-        tf_map = {}
+        mtf_map = {}
 
         for tf in TIMEFRAMES:
 
@@ -449,7 +418,7 @@ def signal(symbol):
                 tf
             )
 
-            tf_map[tf] = result
+            mtf_map[tf] = result
 
             if result == "BULLISH":
                 mtf_bullish += 1
@@ -474,38 +443,27 @@ def signal(symbol):
         short_score = 0
 
         if bullish_trend:
-            long_score += 20
+            long_score += 25
 
         if bearish_trend:
-            short_score += 20
+            short_score += 25
 
-        if rsi.iloc[-1] > 55:
-            long_score += 15
+        if rsi.iloc[-1] > 50:
+            long_score += 25
 
-        if rsi.iloc[-1] < 45:
-            short_score += 15
+        if rsi.iloc[-1] < 50:
+            short_score += 25
 
         if good_volume:
-            long_score += 15
-            short_score += 15
+
+            long_score += 25
+            short_score += 25
 
         if bullish_reject:
-            long_score += 10
+            long_score += 25
 
         if bearish_reject:
-            short_score += 10
-
-        if macd_line.iloc[-1] > signal_line.iloc[-1]:
-            long_score += 15
-
-        if macd_line.iloc[-1] < signal_line.iloc[-1]:
-            short_score += 15
-
-        if structure == "BREAKOUT":
-            long_score += 10
-
-        if structure == "BREAKDOWN":
-            short_score += 10
+            short_score += 25
 
         long_score += (
             mtf_bullish * 5
@@ -515,19 +473,26 @@ def signal(symbol):
             mtf_bearish * 5
         )
 
-        ai_confidence = max(
+        confidence = max(
             long_score,
             short_score
         )
 
-        if ai_confidence > 100:
-            ai_confidence = 100
+        if confidence > 100:
+            confidence = 100
 
+        # =========================
+        # SIGNAL
+        # =========================
         sig = "NONE"
 
         if (
 
             long_score >= 85
+
+            and
+
+            mtf_bullish >= 5
 
             and
 
@@ -537,9 +502,6 @@ def signal(symbol):
 
             atr_percent > 0.05
 
-            and
-
-            mtf_bullish >= 5
         ):
 
             sig = "LONG"
@@ -550,15 +512,16 @@ def signal(symbol):
 
             and
 
+            mtf_bearish >= 5
+
+            and
+
             not_too_far
 
             and
 
             atr_percent > 0.05
 
-            and
-
-            mtf_bearish >= 5
         ):
 
             sig = "SHORT"
@@ -571,13 +534,20 @@ def signal(symbol):
 
             "price": current_price,
 
-            "rsi": rsi.iloc[-1],
+            "rsi": round(
+                rsi.iloc[-1],
+                2
+            ),
 
-            "macd": macd_line.iloc[-1],
+            "volume_ratio": round(
+                volume_ratio,
+                2
+            ),
 
-            "volume_ratio": volume_ratio,
-
-            "atr_percent": atr_percent,
+            "atr_percent": round(
+                atr_percent,
+                4
+            ),
 
             "trend": trend,
 
@@ -587,6 +557,8 @@ def signal(symbol):
 
             "short_score": short_score,
 
+            "confidence": confidence,
+
             "mtf_bullish": mtf_bullish,
 
             "mtf_bearish": mtf_bearish,
@@ -595,9 +567,7 @@ def signal(symbol):
 
             "mtf_status": mtf_status,
 
-            "ai_confidence": ai_confidence,
-
-            "timeframes": tf_map
+            "mtf": mtf_map
         }
 
     except Exception as e:
@@ -607,69 +577,6 @@ def signal(symbol):
         )
 
         return None
-
-# =========================
-# MARKET SCAN
-# =========================
-def scan_market():
-
-    best_coin = None
-    best_score = 0
-
-    screener = []
-
-    console.print(
-        "[cyan]SCANNING MARKET...[/cyan]"
-    )
-
-    for coin in SCAN_COINS:
-
-        data = signal(coin)
-
-        if not data:
-            continue
-
-        screener.append({
-
-            "symbol": coin,
-
-            "signal": data["signal"],
-
-            "long_score": data["long_score"],
-
-            "short_score": data["short_score"],
-
-            "trend": data["trend"],
-
-            "confidence": data["ai_confidence"]
-        })
-
-        score = max(
-            data["long_score"],
-            data["short_score"]
-        )
-
-        console.print(
-
-            f"{coin} | "
-            f"{data['signal']} | "
-            f"CONF {data['ai_confidence']}%"
-        )
-
-        if (
-
-            data["signal"] != "NONE"
-
-            and
-
-            score > best_score
-        ):
-
-            best_score = score
-
-            best_coin = data
-
-    return best_coin, screener
 
 # =========================
 # POSITION
@@ -689,7 +596,6 @@ def get_position(symbol):
             )
 
             if abs(amt) > 0.000001:
-
                 return p
 
     except:
@@ -698,7 +604,7 @@ def get_position(symbol):
     return None
 
 # =========================
-# UNREALIZED PNL
+# PNL
 # =========================
 def unrealized_pnl(symbol):
 
@@ -712,115 +618,202 @@ def unrealized_pnl(symbol):
     )
 
 # =========================
+# DASHBOARD
+# =========================
+def update_dashboard(data, screener):
+
+    pnl = 0
+
+    if state["symbol"]:
+
+        pnl = unrealized_pnl(
+            state["symbol"]
+        )
+
+    try:
+
+        balance_info = client.futures_account_balance()
+
+        usdt_balance = 0
+
+        for b in balance_info:
+
+            if b["asset"] == "USDT":
+
+                usdt_balance = float(
+                    b["balance"]
+                )
+
+    except:
+
+        usdt_balance = 0
+
+    winrate = 0
+
+    if state["trade_count"] > 0:
+
+        winrate = (
+
+            state["win"] /
+            state["trade_count"]
+
+        ) * 100
+
+    web_data.update({
+
+        "symbol": data["symbol"],
+
+        "signal": data["signal"],
+
+        "price": data["price"],
+
+        "rsi": data["rsi"],
+
+        "volume_ratio": data["volume_ratio"],
+
+        "atr_percent": data["atr_percent"],
+
+        "trend": data["trend"],
+
+        "structure": data["structure"],
+
+        "long_score": data["long_score"],
+
+        "short_score": data["short_score"],
+
+        "confidence": data["confidence"],
+
+        "mtf_bullish": data["mtf_bullish"],
+
+        "mtf_bearish": data["mtf_bearish"],
+
+        "mtf_total": data["mtf_total"],
+
+        "mtf_status": data["mtf_status"],
+
+        "mtf": data["mtf"],
+
+        "position": (
+            state["side"]
+            or "NONE"
+        ),
+
+        "entry": state["entry"],
+
+        "tp_price": state["tp_price"],
+
+        "sl_price": state["sl_price"],
+
+        "trail": state["trail"],
+
+        "pnl": pnl,
+
+        "pnl_idr": pnl * USD_IDR,
+
+        "balance": usdt_balance,
+
+        "trade_count": state["trade_count"],
+
+        "winrate": round(
+            winrate,
+            2
+        ),
+
+        "screener": screener
+    })
+
+    socketio.emit(
+        "update",
+        web_data
+    )
+
+# =========================
+# TERMINAL
+# =========================
+def terminal_dashboard(data):
+
+    console.clear()
+
+    table = Table(
+        title="AI MULTI TF BOT",
+        box=box.DOUBLE_EDGE
+    )
+
+    table.add_column("Metric")
+    table.add_column("Value")
+
+    for key, value in data.items():
+
+        table.add_row(
+            str(key),
+            str(value)
+        )
+
+    console.print(table)
+
+# =========================
 # MAIN LOOP
 # =========================
-def start_bot():
+def run_bot():
 
     while True:
 
         try:
 
-            best, screener = scan_market()
+            screener = []
 
-            if not best:
+            best_coin = None
+            best_score = 0
 
-                web_data["screener"] = screener
+            for coin in SCAN_COINS:
 
-                console.print(
-                    "[yellow]NO SIGNAL FOUND[/yellow]"
+                data = signal(coin)
+
+                if not data:
+                    continue
+
+                screener.append({
+
+                    "symbol": data["symbol"],
+
+                    "signal": data["signal"],
+
+                    "long_score": data["long_score"],
+
+                    "short_score": data["short_score"],
+
+                    "trend": data["trend"],
+
+                    "confidence": data["confidence"]
+                })
+
+                score = max(
+                    data["long_score"],
+                    data["short_score"]
                 )
 
-                time.sleep(10)
+                if score > best_score:
 
-                continue
+                    best_score = score
+                    best_coin = data
 
-            web_data.update({
+            if best_coin:
 
-                "symbol": best["symbol"],
+                update_dashboard(
+                    best_coin,
+                    screener
+                )
 
-                "signal": best["signal"],
+                terminal_dashboard(
+                    best_coin
+                )
 
-                "price": best["price"],
-
-                "rsi": best["rsi"],
-
-                "macd": best["macd"],
-
-                "volume_ratio": best["volume_ratio"],
-
-                "atr_percent": best["atr_percent"],
-
-                "trend": best["trend"],
-
-                "structure": best["structure"],
-
-                "long_score": best["long_score"],
-
-                "short_score": best["short_score"],
-
-                "mtf_bullish": best["mtf_bullish"],
-
-                "mtf_bearish": best["mtf_bearish"],
-
-                "mtf_total": best["mtf_total"],
-
-                "mtf_status": best["mtf_status"],
-
-                "ai_confidence": best["ai_confidence"],
-
-                "timeframes": best["timeframes"],
-
-                "screener": screener
-            })
-
-            console.clear()
-
-            table = Table(
-                title="AI MULTI TF BOT",
-                box=box.DOUBLE_EDGE
-            )
-
-            table.add_column("Metric")
-            table.add_column("Value")
-
-            table.add_row(
-                "Symbol",
-                best["symbol"]
-            )
-
-            table.add_row(
-                "Signal",
-                best["signal"]
-            )
-
-            table.add_row(
-                "Trend",
-                best["trend"]
-            )
-
-            table.add_row(
-                "AI Confidence",
-                f'{best["ai_confidence"]}%'
-            )
-
-            table.add_row(
-                "MTF Bull",
-                str(best["mtf_bullish"])
-            )
-
-            table.add_row(
-                "MTF Bear",
-                str(best["mtf_bearish"])
-            )
-
-            console.print(table)
-
-            time.sleep(15)
+            socketio.sleep(10)
 
         except Exception as e:
 
             console.print(
-                f"[red]BOT ERROR:[/red] {e}"
+                f"[red]MAIN LOOP ERROR:[/red] {e}"
             )
 
-            time.sleep(5)
+            socketio.sleep(5)
