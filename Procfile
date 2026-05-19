@@ -1,1 +1,1 @@
-web: python train_ai.py
+web: python app.py
