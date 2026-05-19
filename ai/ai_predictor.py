@@ -2,25 +2,42 @@ import joblib
 import numpy as np
 import os
 
-MODEL_PATH = "models/ai_model.pkl"
+# =========================================
+# PATH
+# =========================================
 
-model = None
+MODEL_PATH = "ai/model.pkl"
+
+SCALER_PATH = "ai/scaler.pkl"
 
 # =========================================
 # LOAD MODEL
 # =========================================
 
-if os.path.exists(MODEL_PATH):
+model = None
+scaler = None
 
-    try:
+try:
 
-        model = joblib.load(MODEL_PATH)
+    if os.path.exists(MODEL_PATH):
+
+        model = joblib.load(
+            MODEL_PATH
+        )
 
         print("AI MODEL LOADED")
 
-    except Exception as e:
+    if os.path.exists(SCALER_PATH):
 
-        print("MODEL LOAD ERROR:", e)
+        scaler = joblib.load(
+            SCALER_PATH
+        )
+
+        print("AI SCALER LOADED")
+
+except Exception as e:
+
+    print("AI LOAD ERROR:", e)
 
 # =========================================
 # AI PREDICT
@@ -29,50 +46,95 @@ if os.path.exists(MODEL_PATH):
 def predict_signal(features):
 
     global model
+    global scaler
 
     if model is None:
 
         return {
+
             "signal": "NONE",
+
             "confidence": 0
         }
 
     try:
 
-        data = np.array([[
+        # =====================================
+        # FEATURES
+        # HARUS SAMA DENGAN train_ai.py
+        # =====================================
+
+        data = [[
+
+            features["ema_fast"],
+            features["ema_slow"],
+
             features["rsi"],
+
+            features["macd"],
+            features["macd_signal"],
+
+            features["atr"],
             features["adx"],
-            features["long_score"],
-            features["short_score"],
-            features["bullish_tf"],
-            features["bearish_tf"],
-            features["support_distance"],
-            features["resistance_distance"]
-        ]])
 
-        prediction = model.predict(data)[0]
+            features["volume"],
+            features["volume_ma"]
 
-        probability = model.predict_proba(data)[0]
+        ]]
+
+        data = np.array(data)
+
+        # =====================================
+        # SCALE
+        # =====================================
+
+        if scaler is not None:
+
+            data = scaler.transform(data)
+
+        # =====================================
+        # PREDICT
+        # =====================================
+
+        prediction = model.predict(
+            data
+        )[0]
+
+        probabilities = model.predict_proba(
+            data
+        )[0]
 
         confidence = round(
-            max(probability) * 100,
+            max(probabilities) * 100,
             2
         )
 
+        # =====================================
+        # SIGNAL
+        # =====================================
+
         signal = "NONE"
 
-        # =====================================
-        # LABEL
-        # =====================================
-
         if prediction == 1:
+
             signal = "LONG"
 
-        elif prediction == -1:
+        elif prediction == 0:
+
             signal = "SHORT"
 
+        # =====================================
+        # FILTER CONFIDENCE
+        # =====================================
+
+        if confidence < 55:
+
+            signal = "NONE"
+
         return {
+
             "signal": signal,
+
             "confidence": confidence
         }
 
@@ -81,6 +143,8 @@ def predict_signal(features):
         print("AI PREDICT ERROR:", e)
 
         return {
+
             "signal": "NONE",
+
             "confidence": 0
         }
