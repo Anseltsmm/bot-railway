@@ -1,4 +1,5 @@
 from strategy.scorer import calculate_mtf
+
 from strategy.snr import (
     get_support_resistance,
     calculate_snr_distance
@@ -13,7 +14,7 @@ from strategy.mtf import get_tf_dataframe
 def analyze_multi_tf():
 
     # =========================================
-    # MTF DATA
+    # MULTI TF DATA
     # =========================================
 
     data = calculate_mtf()
@@ -25,46 +26,59 @@ def analyze_multi_tf():
     bearish_tf = data["bearish_tf"]
 
     signal = "NONE"
+
     trend = "SIDEWAYS"
+
     structure = "RANGING"
+
     confidence = 0
 
     # =========================================
-    # MAIN TF DATA
+    # MAIN TF
     # =========================================
 
     df = get_tf_dataframe("5m")
 
     last = df.iloc[-1]
 
-    current_price = float(last["close"])
+    current_price = float(
+        last["close"]
+    )
 
     # =========================================
-    # SUPPORT & RESISTANCE
+    # SUPPORT RESISTANCE
     # =========================================
 
     snr = get_support_resistance(df)
 
-    support = snr["support"]
-    resistance = snr["resistance"]
+    support = float(
+        snr["support"]
+    )
+
+    resistance = float(
+        snr["resistance"]
+    )
 
     # =========================================
-    # DISTANCE TO SNR
+    # DISTANCE
     # =========================================
 
     distance = calculate_snr_distance(
+
         price=current_price,
+
         support=support,
+
         resistance=resistance
     )
 
-    support_distance = distance[
-        "support_distance"
-    ]
+    support_distance = float(
+        distance["support_distance"]
+    )
 
-    resistance_distance = distance[
-        "resistance_distance"
-    ]
+    resistance_distance = float(
+        distance["resistance_distance"]
+    )
 
     # =========================================
     # INDICATORS
@@ -72,18 +86,37 @@ def analyze_multi_tf():
 
     rsi = float(last["rsi"])
 
-    ema_fast = float(last["ema_fast"])
-    ema_slow = float(last["ema_slow"])
+    ema_fast = float(
+        last["ema_fast"]
+    )
 
-    macd = float(last["macd"])
-    macd_signal = float(last["macd_signal"])
+    ema_slow = float(
+        last["ema_slow"]
+    )
 
-    adx = float(last["adx"])
+    macd = float(
+        last["macd"]
+    )
 
-    volume = float(last["volume"])
-    volume_ma = float(last["volume_ma"])
+    macd_signal = float(
+        last["macd_signal"]
+    )
 
-    high_volume = volume > volume_ma
+    adx = float(
+        last["adx"]
+    )
+
+    volume = float(
+        last["volume"]
+    )
+
+    volume_ma = float(
+        last["volume_ma"]
+    )
+
+    high_volume = (
+        volume > volume_ma
+    )
 
     # =========================================
     # TREND
@@ -98,55 +131,64 @@ def analyze_multi_tf():
         trend = "BEARISH"
 
     # =========================================
-    # CONFIDENCE BASE
+    # BASE CONFIDENCE
     # =========================================
 
     score_diff = abs(
         long_score - short_score
     )
 
-    confidence = min(
-        100,
+    confidence = (
         score_diff * 5
     )
 
     # =========================================
-    # BONUS CONFIDENCE
+    # EMA BONUS
     # =========================================
-
-    # EMA TREND
 
     if ema_fast > ema_slow:
 
         confidence += 5
 
-    else:
+    elif ema_fast < ema_slow:
 
         confidence += 5
 
-    # MACD
+    # =========================================
+    # MACD BONUS
+    # =========================================
 
     if macd > macd_signal:
 
         confidence += 5
 
-    else:
+    elif macd < macd_signal:
 
         confidence += 5
 
-    # ADX
+    # =========================================
+    # ADX BONUS
+    # =========================================
 
     if adx >= 25:
 
         confidence += 10
 
-    # VOLUME
+    elif adx >= 20:
+
+        confidence += 5
+
+    # =========================================
+    # VOLUME BONUS
+    # =========================================
 
     if high_volume:
 
         confidence += 5
 
-    # LIMIT MAX
+    # =========================================
+    # LIMIT CONFIDENCE
+    # =========================================
 
     confidence = min(
         100,
@@ -154,7 +196,7 @@ def analyze_multi_tf():
     )
 
     # =========================================
-    # LONG FILTER
+    # LONG VALIDATION
     # =========================================
 
     long_valid = (
@@ -184,11 +226,10 @@ def analyze_multi_tf():
         and
 
         rsi > 50
-
     )
 
     # =========================================
-    # SHORT FILTER
+    # SHORT VALIDATION
     # =========================================
 
     short_valid = (
@@ -218,7 +259,6 @@ def analyze_multi_tf():
         and
 
         rsi < 50
-
     )
 
     # =========================================
@@ -293,9 +333,15 @@ def analyze_multi_tf():
         # SUPPORT RESISTANCE
         # =========================
 
-        "support": round(support, 4),
+        "support": round(
+            support,
+            4
+        ),
 
-        "resistance": round(resistance, 4),
+        "resistance": round(
+            resistance,
+            4
+        ),
 
         "support_distance": round(
             support_distance,
