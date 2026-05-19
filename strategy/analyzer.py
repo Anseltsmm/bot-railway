@@ -7,6 +7,8 @@ from strategy.snr import (
 
 from strategy.mtf import get_tf_dataframe
 
+from ai.ai_predictor import predict_signal
+
 # =========================================
 # MAIN ANALYZER
 # =========================================
@@ -27,11 +29,15 @@ def analyze_multi_tf():
 
     signal = "NONE"
 
+    ai_signal = "NONE"
+
     trend = "SIDEWAYS"
 
     structure = "RANGING"
 
     confidence = 0
+
+    ai_confidence = 0
 
     # =========================================
     # MAIN TF
@@ -216,6 +222,35 @@ def analyze_multi_tf():
     )
 
     # =========================================
+    # AI PREDICTION
+    # =========================================
+
+    ai_result = predict_signal({
+
+        "ema_fast": ema_fast,
+
+        "ema_slow": ema_slow,
+
+        "rsi": rsi,
+
+        "macd": macd,
+
+        "macd_signal": macd_signal,
+
+        "atr": atr,
+
+        "adx": adx,
+
+        "volume": volume,
+
+        "volume_ma": volume_ma
+    })
+
+    ai_signal = ai_result["signal"]
+
+    ai_confidence = ai_result["confidence"]
+
+    # =========================================
     # LONG VALIDATION
     # =========================================
 
@@ -290,14 +325,14 @@ def analyze_multi_tf():
     )
 
     # =========================================
-    # SIGNAL
+    # FINAL SIGNAL
     # =========================================
 
-    if long_valid:
+    if long_valid and ai_signal == "LONG":
 
         signal = "LONG"
 
-    elif short_valid:
+    elif short_valid and ai_signal == "SHORT":
 
         signal = "SHORT"
 
@@ -325,11 +360,15 @@ def analyze_multi_tf():
 
         "signal": signal,
 
+        "ai_signal": ai_signal,
+
         "trend": trend,
 
         "structure": structure,
 
         "confidence": confidence,
+
+        "ai_confidence": ai_confidence,
 
         # =========================
         # SCORE
