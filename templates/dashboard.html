@@ -328,6 +328,11 @@ AI CONFIDENCE
 </div>
 
 <div class="card">
+<div class="label">ATR</div>
+<div class="value blue" id="atr">0</div>
+</div>
+
+<div class="card">
 <div class="label">TREND</div>
 <div class="value" id="market_trend">-</div>
 </div>
@@ -340,6 +345,21 @@ AI CONFIDENCE
 <div class="card">
 <div class="label">SHORT SCORE</div>
 <div class="value red" id="short_score">0</div>
+</div>
+
+<div class="card">
+<div class="label">SUPPORT</div>
+<div class="value green" id="support">0</div>
+</div>
+
+<div class="card">
+<div class="label">RESISTANCE</div>
+<div class="value red" id="resistance">0</div>
+</div>
+
+<div class="card">
+<div class="label">EMA STATUS</div>
+<div class="value" id="ema_status">-</div>
 </div>
 
 <div class="card">
@@ -447,7 +467,7 @@ reconnection:true
 
 });
 
-let currentSymbol = "BTCUSDT";
+let currentSymbol = null;
 
 const labels = [];
 const pnlData = [];
@@ -570,10 +590,6 @@ function loadTradingView(symbol){
 
 if(!symbol) return;
 
-if(currentSymbol === symbol){
-return;
-}
-
 currentSymbol = symbol;
 
 const container =
@@ -676,10 +692,33 @@ setText(
 '$' + safeNumber(data.balance,2)
 );
 
-setText(
-'position',
-data.position || 'NONE'
+const posEl =
+document.getElementById('position');
+
+posEl.innerText =
+data.position || 'NONE';
+
+posEl.classList.remove(
+'green',
+'red',
+'blue'
 );
+
+if(data.position === "LONG"){
+
+posEl.classList.add('green');
+
+}
+else if(data.position === "SHORT"){
+
+posEl.classList.add('red');
+
+}
+else{
+
+posEl.classList.add('blue');
+
+}
 
 setText(
 'entry',
@@ -696,10 +735,30 @@ setText(
 safeNumber(data.tp_price)
 );
 
-setText(
-'pnl',
-safeNumber(data.pnl,2)
+const pnlEl =
+document.getElementById('pnl');
+
+const pnlValue =
+Number(data.pnl || 0);
+
+pnlEl.innerText =
+safeNumber(pnlValue,2);
+
+pnlEl.classList.remove(
+'green',
+'red'
 );
+
+if(pnlValue > 0){
+
+pnlEl.classList.add('green');
+
+}
+else if(pnlValue < 0){
+
+pnlEl.classList.add('red');
+
+}
 
 setText(
 'rsi',
@@ -709,6 +768,11 @@ safeNumber(data.rsi,2)
 setText(
 'adx',
 safeNumber(data.adx,2)
+);
+
+setText(
+'atr',
+safeNumber(data.atr,4)
 );
 
 setText(
@@ -724,6 +788,16 @@ data.long_score || 0
 setText(
 'short_score',
 data.short_score || 0
+);
+
+setText(
+'support',
+safeNumber(data.support)
+);
+
+setText(
+'resistance',
+safeNumber(data.resistance)
 );
 
 setText(
@@ -746,10 +820,35 @@ setText(
 data.ai_signal || "-"
 );
 
+const aiFill =
 document.getElementById(
 'ai_fill'
-).style.width =
-(data.confidence || 0) + "%";
+);
+
+const conf =
+Number(data.confidence || 0);
+
+aiFill.style.width =
+conf + "%";
+
+if(conf >= 75){
+
+aiFill.style.background =
+'#22c55e';
+
+}
+else if(conf >= 50){
+
+aiFill.style.background =
+'#facc15';
+
+}
+else{
+
+aiFill.style.background =
+'#ef4444';
+
+}
 
 const signalEl =
 document.getElementById(
@@ -780,6 +879,37 @@ else{
 
 signalEl.classList.add(
 'signal-none'
+);
+
+}
+
+const emaStatus =
+document.getElementById(
+'ema_status'
+);
+
+emaStatus.classList.remove(
+'green',
+'red'
+);
+
+if(data.ema_fast > data.ema_slow){
+
+emaStatus.innerText =
+'BULLISH';
+
+emaStatus.classList.add(
+'green'
+);
+
+}
+else{
+
+emaStatus.innerText =
+'BEARISH';
+
+emaStatus.classList.add(
+'red'
 );
 
 }
@@ -846,4 +976,4 @@ data.symbol
 </script>
 
 </body>
-  </html>
+</html>
