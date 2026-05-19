@@ -31,7 +31,7 @@ def analyze_multi_tf():
 
     structure = "RANGING"
 
-    confidence = 0
+    strategy_confidence = 0
 
     # =========================================
     # MAIN TF
@@ -106,6 +106,10 @@ def analyze_multi_tf():
         last["adx"]
     )
 
+    atr = float(
+        last["atr"]
+    )
+
     volume = float(
         last["volume"]
     )
@@ -138,7 +142,7 @@ def analyze_multi_tf():
         long_score - short_score
     )
 
-    confidence = (
+    strategy_confidence = (
         score_diff * 5
     )
 
@@ -148,11 +152,11 @@ def analyze_multi_tf():
 
     if ema_fast > ema_slow:
 
-        confidence += 5
+        strategy_confidence += 5
 
     elif ema_fast < ema_slow:
 
-        confidence += 5
+        strategy_confidence += 5
 
     # =========================================
     # MACD BONUS
@@ -160,11 +164,11 @@ def analyze_multi_tf():
 
     if macd > macd_signal:
 
-        confidence += 5
+        strategy_confidence += 5
 
     elif macd < macd_signal:
 
-        confidence += 5
+        strategy_confidence += 5
 
     # =========================================
     # ADX BONUS
@@ -172,11 +176,11 @@ def analyze_multi_tf():
 
     if adx >= 25:
 
-        confidence += 10
+        strategy_confidence += 10
 
     elif adx >= 20:
 
-        confidence += 5
+        strategy_confidence += 5
 
     # =========================================
     # VOLUME BONUS
@@ -184,15 +188,15 @@ def analyze_multi_tf():
 
     if high_volume:
 
-        confidence += 5
+        strategy_confidence += 5
 
     # =========================================
     # LIMIT CONFIDENCE
     # =========================================
 
-    confidence = min(
+    strategy_confidence = min(
         100,
-        round(confidence)
+        round(strategy_confidence)
     )
 
     # =========================================
@@ -209,7 +213,7 @@ def analyze_multi_tf():
 
         and
 
-        confidence >= 45
+        strategy_confidence >= 45
 
         and
 
@@ -242,7 +246,7 @@ def analyze_multi_tf():
 
         and
 
-        confidence >= 45
+        strategy_confidence >= 45
 
         and
 
@@ -291,9 +295,9 @@ def analyze_multi_tf():
 
     return {
 
-        # =========================
+        # =====================================
         # SIGNAL
-        # =========================
+        # =====================================
 
         "signal": signal,
 
@@ -301,11 +305,12 @@ def analyze_multi_tf():
 
         "structure": structure,
 
-        "confidence": confidence,
+        "strategy_confidence":
+        strategy_confidence,
 
-        # =========================
-        # SCORE
-        # =========================
+        # =====================================
+        # SCORES
+        # =====================================
 
         "long_score": long_score,
 
@@ -315,23 +320,61 @@ def analyze_multi_tf():
 
         "bearish_tf": bearish_tf,
 
-        # =========================
+        # =====================================
         # INDICATORS
-        # =========================
+        # =====================================
 
         "rsi": round(rsi, 2),
 
         "adx": round(adx, 2),
 
-        # =========================
+        "atr": round(atr, 4),
+
+        "ema_fast": round(
+            ema_fast,
+            4
+        ),
+
+        "ema_slow": round(
+            ema_slow,
+            4
+        ),
+
+        "macd": round(
+            macd,
+            4
+        ),
+
+        "macd_signal": round(
+            macd_signal,
+            4
+        ),
+
+        # =====================================
+        # VOLUME
+        # =====================================
+
+        "volume": round(
+            volume,
+            2
+        ),
+
+        "volume_ma": round(
+            volume_ma,
+            2
+        ),
+
+        "high_volume": high_volume,
+
+        # =====================================
         # MTF
-        # =========================
+        # =====================================
 
         "mtf": data["mtf"],
 
-        # =========================
+        # =====================================
         # SUPPORT RESISTANCE
-        # =========================
+        # =====================================
 
         "support": round(
             support,
@@ -353,9 +396,12 @@ def analyze_multi_tf():
             2
         ),
 
-        # =========================
+        # =====================================
         # EXTRA
-        # =========================
+        # =====================================
 
-        "high_volume": high_volume
+        "current_price": round(
+            current_price,
+            4
+        )
     }
