@@ -16,3 +16,7 @@ websocket-client
 PySocks
 
 rich
+scikit-learn
+joblib
+numpy
+pandas
