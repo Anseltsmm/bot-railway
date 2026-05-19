@@ -3,10 +3,12 @@
 
 <head>
 
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
 
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0">
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+/>
 
 <title>
 BINANCE AI HYBRID BOT
@@ -15,8 +17,6 @@ BINANCE AI HYBRID BOT
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<script src="https://s3.tradingview.com/tv.js"></script>
 
 <style>
 
@@ -78,6 +78,7 @@ font-size:14px;
 .value{
 font-size:26px;
 font-weight:bold;
+word-break:break-word;
 }
 
 .green{
@@ -110,6 +111,7 @@ background:#0f172a;
 padding:20px;
 border-radius:20px;
 border:1px solid #1e293b;
+overflow:hidden;
 }
 
 .chart-title{
@@ -184,6 +186,27 @@ font-size:20px;
 font-weight:bold;
 }
 
+canvas{
+max-height:350px;
+}
+
+#tv-container{
+width:100%;
+height:650px;
+border-radius:15px;
+overflow:hidden;
+}
+
+.tradingview-widget-container{
+height:100%;
+width:100%;
+}
+
+.tradingview-widget-container__widget{
+height:calc(100% - 32px);
+width:100%;
+}
+
 @media(max-width:768px){
 
 .title{
@@ -192,6 +215,10 @@ font-size:22px;
 
 .value{
 font-size:20px;
+}
+
+#tv-container{
+height:500px;
 }
 
 }
@@ -214,6 +241,10 @@ AI ENGINE ACTIVE
 
 </div>
 
+<!-- ===================== -->
+<!-- GRID -->
+<!-- ===================== -->
+
 <div class="grid">
 
 <div class="card">
@@ -232,8 +263,14 @@ AI ENGINE ACTIVE
 </div>
 
 <div class="card">
-<div class="label">AI CONFIDENCE</div>
-<div class="value yellow" id="confidence">0%</div>
+
+<div class="label">
+AI CONFIDENCE
+</div>
+
+<div class="value yellow" id="confidence">
+0%
+</div>
 
 <div class="ai-box">
 
@@ -317,6 +354,10 @@ AI ENGINE ACTIVE
 
 </div>
 
+<!-- ===================== -->
+<!-- MTF -->
+<!-- ===================== -->
+
 <div class="chart-box">
 
 <div class="chart-title">
@@ -354,6 +395,10 @@ AI ENGINE ACTIVE
 
 </div>
 
+<!-- ===================== -->
+<!-- PNL -->
+<!-- ===================== -->
+
 <div class="chart-box">
 
 <div class="chart-title">
@@ -364,13 +409,28 @@ AI ENGINE ACTIVE
 
 </div>
 
+<!-- ===================== -->
+<!-- ADVANCED TRADINGVIEW -->
+<!-- ===================== -->
+
 <div class="chart-box">
 
 <div class="chart-title">
-📊 LIVE CHART
+📊 ADVANCED LIVE CHART
 </div>
 
-<div id="tradingview_chart"></div>
+<div id="tv-container">
+
+<div class="tradingview-widget-container">
+
+<div
+class="tradingview-widget-container__widget"
+id="tradingview_widget">
+</div>
+
+</div>
+
+</div>
 
 </div>
 
@@ -380,49 +440,107 @@ AI MODEL • MACHINE LEARNING • HYBRID TRADING SYSTEM
 
 <script>
 
-const socket = io();
+const socket = io({
+
+transports:['websocket'],
+reconnection:true
+
+});
+
+let currentSymbol = "BTCUSDT";
 
 const labels = [];
 const pnlData = [];
 
 const chart = new Chart(
+
 document.getElementById('pnlChart'),
+
 {
 type:'line',
 
 data:{
+
 labels:labels,
+
 datasets:[{
+
 label:'PNL',
 data:pnlData,
 borderWidth:2,
 tension:0.3
+
 }]
+
 },
 
 options:{
-responsive:true
+
+responsive:true,
+
+plugins:{
+legend:{
+labels:{
+color:'white'
 }
 }
+},
+
+scales:{
+
+x:{
+ticks:{
+color:'white'
+}
+},
+
+y:{
+ticks:{
+color:'white'
+}
+}
+
+}
+
+}
+
+}
+
 );
+
+function safeNumber(value,digits=4){
+
+const num = parseFloat(value);
+
+if(isNaN(num)){
+return "0";
+}
+
+return num.toFixed(digits);
+
+}
 
 function setText(id,val){
 
-const el=document.getElementById(id);
+const el =
+document.getElementById(id);
 
 if(el){
-el.innerText=val;
+
+el.innerText = val;
+
 }
 
 }
 
 function setTF(id,val){
 
-const el=document.getElementById(id);
+const el =
+document.getElementById(id);
 
 if(!el) return;
 
-el.innerText=val;
+el.innerText = val || "-";
 
 el.classList.remove(
 'green',
@@ -430,12 +548,12 @@ el.classList.remove(
 'yellow'
 );
 
-if(val==="BULLISH"){
+if(val === "BULLISH"){
 
 el.classList.add('green');
 
 }
-else if(val==="BEARISH"){
+else if(val === "BEARISH"){
 
 el.classList.add('red');
 
@@ -448,63 +566,185 @@ el.classList.add('yellow');
 
 }
 
-new TradingView.widget({
+function loadTradingView(symbol){
 
-width:"100%",
-height:550,
+if(!symbol) return;
 
-symbol:"BINANCE:BTCUSDT",
+if(currentSymbol === symbol){
+return;
+}
 
-interval:"5",
+currentSymbol = symbol;
 
-timezone:"Asia/Jakarta",
+const container =
+document.getElementById(
+'tradingview_widget'
+);
 
-theme:"dark",
+container.innerHTML = "";
 
-style:"1",
+const script =
+document.createElement('script');
 
-locale:"en",
+script.type =
+'text/javascript';
 
-container_id:"tradingview_chart"
+script.src =
+'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+
+script.async = true;
+
+script.innerHTML = JSON.stringify({
+
+"autosize": true,
+
+"symbol":
+"BINANCE:" + symbol,
+
+"interval": "5",
+
+"timezone":
+"Asia/Jakarta",
+
+"theme": "dark",
+
+"style": "1",
+
+"locale": "en",
+
+"allow_symbol_change": true,
+
+"calendar": false,
+
+"support_host":
+"https://www.tradingview.com",
+
+"hide_top_toolbar": false,
+
+"hide_legend": false,
+
+"save_image": false,
+
+"studies": [
+
+"Volume@tv-basicstudies",
+
+"RSI@tv-basicstudies",
+
+"MACD@tv-basicstudies"
+
+],
+
+"withdateranges": true
 
 });
 
-socket.on('update', function(data){
+container.appendChild(script);
 
-setText('symbol',data.symbol);
+}
 
-setText('price',parseFloat(data.price).toFixed(4));
+window.addEventListener(
+'load',
+function(){
 
-setText('balance',
-'$'+parseFloat(data.balance).toFixed(2));
+setTimeout(() => {
 
-setText('position',data.position);
+loadTradingView(
+"BTCUSDT"
+);
 
-setText('entry',data.entry);
+},1000);
 
-setText('sl',data.sl_price);
+});
 
-setText('tp',data.tp_price);
+socket.on('update',function(data){
 
-setText('pnl',parseFloat(data.pnl).toFixed(2));
+console.log(data);
 
-setText('rsi',parseFloat(data.rsi).toFixed(2));
+setText(
+'symbol',
+data.symbol || '-'
+);
 
-setText('adx',parseFloat(data.adx).toFixed(2));
+setText(
+'price',
+safeNumber(data.price)
+);
 
-setText('market_trend',data.trend);
+setText(
+'balance',
+'$' + safeNumber(data.balance,2)
+);
 
-setText('long_score',data.long_score);
+setText(
+'position',
+data.position || 'NONE'
+);
 
-setText('short_score',data.short_score);
+setText(
+'entry',
+safeNumber(data.entry)
+);
 
-setText('trade_count',data.trade_count);
+setText(
+'sl',
+safeNumber(data.sl_price)
+);
 
-setText('winrate',data.winrate + "%");
+setText(
+'tp',
+safeNumber(data.tp_price)
+);
 
-setText('confidence',data.confidence + "%");
+setText(
+'pnl',
+safeNumber(data.pnl,2)
+);
 
-setText('ai_signal',data.ai_signal);
+setText(
+'rsi',
+safeNumber(data.rsi,2)
+);
+
+setText(
+'adx',
+safeNumber(data.adx,2)
+);
+
+setText(
+'market_trend',
+data.trend || '-'
+);
+
+setText(
+'long_score',
+data.long_score || 0
+);
+
+setText(
+'short_score',
+data.short_score || 0
+);
+
+setText(
+'trade_count',
+data.trade_count || 0
+);
+
+setText(
+'winrate',
+(data.winrate || 0) + "%"
+);
+
+setText(
+'confidence',
+(data.confidence || 0) + "%"
+);
+
+setText(
+'ai_signal',
+data.ai_signal || "-"
+);
 
 document.getElementById(
 'ai_fill'
@@ -512,22 +752,24 @@ document.getElementById(
 (data.confidence || 0) + "%";
 
 const signalEl =
-document.getElementById('signal');
+document.getElementById(
+'signal'
+);
 
 signalEl.innerText =
-data.signal;
+data.signal || "NONE";
 
 signalEl.className =
 'value';
 
-if(data.signal==="LONG"){
+if(data.signal === "LONG"){
 
 signalEl.classList.add(
 'signal-long'
 );
 
 }
-else if(data.signal==="SHORT"){
+else if(data.signal === "SHORT"){
 
 signalEl.classList.add(
 'signal-short'
@@ -544,11 +786,30 @@ signalEl.classList.add(
 
 if(data.mtf){
 
-setTF('tf_1m',data.mtf["1m"]);
-setTF('tf_5m',data.mtf["5m"]);
-setTF('tf_15m',data.mtf["15m"]);
-setTF('tf_1h',data.mtf["1h"]);
-setTF('tf_4h',data.mtf["4h"]);
+setTF(
+'tf_1m',
+data.mtf["1m"]
+);
+
+setTF(
+'tf_5m',
+data.mtf["5m"]
+);
+
+setTF(
+'tf_15m',
+data.mtf["15m"]
+);
+
+setTF(
+'tf_1h',
+data.mtf["1h"]
+);
+
+setTF(
+'tf_4h',
+data.mtf["4h"]
+);
 
 }
 
@@ -567,11 +828,22 @@ pnlData.shift();
 
 }
 
-chart.update();
+chart.update('none');
+
+if(
+data.symbol &&
+data.symbol !== currentSymbol
+){
+
+loadTradingView(
+data.symbol
+);
+
+}
 
 });
 
 </script>
 
 </body>
-</html>
+  </html>
